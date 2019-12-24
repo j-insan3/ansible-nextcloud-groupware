@@ -1,0 +1,312 @@
+- name: (nextcloud) Ensure group "nextcloud" exists
+  group:
+    name: nextcloud
+    gid: 5001
+    state: present
+    system: yes
+
+- name: (nextcloud) Add nextcloud user
+  user:
+    name: nextcloud
+    comment: nextcloud user
+    uid: 5001
+    group: nextcloud
+    system: yes
+
+- include_tasks: "centos-install-nextcloud.yml"
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version > '6'
+
+- include_tasks: "mariadb-setup.yml"
+
+- name: (nextcloud) create nextcloud nginx config
+  template:
+    src: nextcloud_nginx.conf.j2
+    dest: /etc/nginx/conf.d/nextcloud.conf
+    force: no
+
+- name: (nextcloud) create nextcloud www dir
+  file:
+    path: /var/www/nextcloud
+    state: directory
+    owner: nextcloud
+    group: nextcloud
+    mode: 0755
+
+- name: (nextcloud) create nextcloud data dir
+  file:
+    path: "{{ nextcloud_data_dir }}"
+    state: directory
+    owner: nextcloud
+    group: nextcloud
+    recurse: yes
+    mode: 0750
+
+- name: (nextcloud) create ocdata file
+  copy:
+    content: ""
+    dest: "{{ nextcloud_data_dir }}/.ocdata"
+    force: no
+    group: nextcloud
+    owner: nextcloud
+    mode: 0660
+
+- name: (nextcloud) create directory for nginx certs
+  file:
+    path: /etc/ssl/nginx
+    state: directory
+
+- name: (nextcloud) create temporary selfsigned certificate for nextcloud
+  command: openssl req -newkey rsa:2048 -x509 -nodes -out /etc/ssl/nginx/{{ nextcloud_host_name }}.crt -keyout /etc/ssl/nginx/{{ nextcloud_host_name }}.key -days 18800 -subj "/CN={{ nextcloud_host_name }}"
+  args:
+    creates: /etc/ssl/nginx/{{ nextcloud_host_name }}.crt
+
+- name: (nextcloud) start nginx
+  systemd:
+     name: nginx
+     state: started
+     enabled: yes
+
+- name: (nextcloud) setup letsencrypt cert
+  command: certbot --nginx -n --agree-tos --email {{ certbot_address }} -d {{ nextcloud_host_name }}
+
+- name: (nextcloud) "Download & extract Nextcloud ."
+  unarchive:
+    remote_src: yes
+    src: "https://download.nextcloud.com/server/releases/latest-{{ nextcloud_release }}.zip"
+    dest: "/var/www"
+    creates: "/var/www/nextcloud/index.php"
+    owner: nextcloud
+    group: nextcloud
+
+- name: (nextcloud) setup nextcloud
+  become_user: nextcloud
+  command: php72 occ maintenance:install --database "mysql" --database-name "{{ nextcloud_db_name }}"  --database-user "{{ nextcloud_db_admin }}" --database-pass "{{ nextcloud_db_pw }}" --admin-user "{{ nc_admin_user }}" --admin-pass "{{ nc_admin_pw }}" --data-dir="{{ nextcloud_data_dir }}"
+  args:
+   chdir: /var/www/nextcloud
+   creates: "{{ nextcloud_data_dir }}/nextcloud.log"
+  register: setup_nextcloud
+
+- name: (nextcloud) Set Trusted Domains
+  become_user: nextcloud
+  command: "php72 occ config:system:set trusted_domains 1 --value={{ nextcloud_host_name }}"
+  args:
+    chdir: "/var/www/nextcloud"
+
+- name: (nextcloud) "Set Redis Server"
+  become_user: nextcloud
+  command: php72 occ config:system:set {{ item.name }} --value="{{ item.value }}"
+  args:
+    chdir: /var/www/nextcloud
+  with_items:
+    - "{{ nextcloud_redis_settings }}"
+
+- name: (nextcloud) install nextcloud mail app
+  become_user: nextcloud
+  command: php72 occ app:install mail
+  args:
+    chdir: /var/www/nextcloud
+  ignore_errors: yes
+
+- name: (nextcloud) enable nextcloud mail app
+  become_user: nextcloud
+  command: php72 occ app:enable mail
+  args:
+    chdir: /var/www/nextcloud
+  ignore_errors: yes
+
+- name: (nextcloud) install nextcloud contacts app
+  become_user: nextcloud
+  command: php72 occ app:install contacts
+  args:
+    chdir: /var/www/nextcloud
+  ignore_errors: yes
+
+- name: (nextcloud) enable nextcloud contacts app
+  become_user: nextcloud
+  command: php72 occ app:enable contacts
+  args:
+    chdir: /var/www/nextcloud
+  ignore_errors: yes
+
+- name: (nextcloud) install nextcloud calendar app
+  become_user: nextcloud
+  command: php72 occ app:install calendar
+  args:
+    chdir: /var/www/nextcloud
+  ignore_errors: yes
+
+- name: (nextcloud) enable nextcloud calendar app
+  become_user: nextcloud
+  command: php72 occ app:enable calendar
+  args:
+    chdir: /var/www/nextcloud
+  ignore_errors: yes
+
+- name: (nextcloud) install ldap auth
+  become_user: nextcloud
+  command: php72 occ app:install user_ldap
+  args:
+    chdir: /var/www/nextcloud
+  ignore_errors: yes
+
+- name: (nextcloud) enable ldap
+  become_user: nextcloud
+  command: php72 occ app:enable user_ldap
+  args:
+    chdir: /var/www/nextcloud
+  ignore_errors: yes
+
+- name: (nextcloud) Set default mail app login
+  become_user: nextcloud
+  command: php72 occ config:system:set app.mail.accounts.default {{ item.name }} --value={{ item.value }}
+  args:
+    chdir: "/var/www/nextcloud"
+  with_items:
+    - "{{ nextcloud_mail_settings }}"
+
+- name: (nextcloud) create empty ldap config
+  become_user: nextcloud
+  command: php72 occ ldap:create-empty-config
+  args:
+    chdir: /var/www/nextcloud
+  when: setup_nextcloud.changed
+
+- name: (nextcloud) set nextcloud bind user
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapAgentName uid=nextcloud,ou=services,{{ dc_base }}
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldap base
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapBase {{ dc_base }}
+  args:
+    chdir: /var/www/nextcloud
+
+
+- name: (nextcloud) set nextcloud ldapBaseGroups
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapBaseGroups {{ dc_base }}
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldapBaseUsers
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapBaseUsers ou=People,{{ dc_base }}
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldapEmailAttribute
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapEmailAttribute mail
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldapExpertUUIDGroupAttr
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapExpertUUIDGroupAttr cn
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldapExpertUUIDUserAttr
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapExpertUUIDUserAttr uid
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldapHost
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapHost {{ master_ldap1 }}
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldapAgentPassword
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapAgentPassword {{ nextcloud_bind_pw }}
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldapLoginFilter
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapLoginFilter '(&(|(objectclass=inetOrgPerson)(objectclass=organizationalPerson)(objectclass=posixAccount))(|(uid=%uid)(|(mailPrimaryAddress=%uid)(mail=%uid))))'
+  args:
+    chdir: /var/www/nextcloud
+  when: setup_nextcloud.changed
+
+- name: (nextcloud) set nextcloud ldapPort
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapPort 389
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldapUserDisplayName
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapUserDisplayName cn
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldapUserFilter
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapUserFilter '(|(objectclass=inetOrgPerson)(objectclass=organizationalPerson)(objectclass=posixAccount))'
+  args:
+    chdir: /var/www/nextcloud
+  when: setup_nextcloud.changed
+
+- name: (nextcloud) set nextcloud ldapUserFilterObjectclass
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapUserFilterObjectclass 'inetOrgPerson;organizationalPerson;posixAccount'
+  args:
+    chdir: /var/www/nextcloud
+  when: setup_nextcloud.changed
+
+- name: (nextcloud) set nextcloud turnOnPasswordChange
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 turnOnPasswordChange 1
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldapBackupHost
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapBackupHost {{ master_ldap2 }}
+  args:
+    chdir: /var/www/nextcloud
+  when: master_ldap2 is defined
+
+- name: (nextcloud) set nextcloud ldapBackupPort
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapBackupPort 389
+  args:
+    chdir: /var/www/nextcloud
+  when: master_ldap2 is defined
+
+- name: (nextcloud) set nextcloud ldapLoginFilterEmail
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapLoginFilterEmail 1
+  args:
+    chdir: /var/www/nextcloud
+
+- name: (nextcloud) set nextcloud ldapGroupMemberAssocAttr
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapGroupMemberAssocAttr gidNumber
+  args:
+    chdir: /var/www/nextcloud
+  when: setup_nextcloud.changed
+
+- name: (nextcloud) set nextcloud ldapConfigurationActive
+  become_user: nextcloud
+  command: php72 occ ldap:set-config s01 ldapConfigurationActive 1
+  args:
+    chdir: /var/www/nextcloud
+
+- name: autorenew letsencrypt
+  cron:
+    name: "renew letsencrypt certs"
+    special_time: monthly
+    job: "/usr/bin/certbot renew"
+
+- name: nextcloud crontab
+  cron:
+    name: nextcloud cronjobs
+    minute: "*/5"
+    job: "php72 -f /var/www/nextcloud/cron.php"
+    user: nextcloud

@@ -1,0 +1,123 @@
+- include_tasks: "install-centos.yml"
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version > '6'
+  tags:
+    - install
+
+- include_tasks: "install-freebsd.yml"
+  when: ansible_distribution == "FreeBSD"
+  tags:
+    - install
+    - freebsd
+
+- name: (openldap) create base dn
+  ldap_entry:
+   dn: "{{ dc_base }}"
+   objectClass:
+     - top
+     - organization
+     - dcobject
+     - domainRelatedObject
+   attributes:
+     o: "{{ organisation }}"
+     associatedDomain: "{{ first_domain }}"
+   bind_dn: cn=ldapadm,{{ dc_base }}
+   bind_pw: "{{ ldapadm_pw }}"
+
+
+- name: (openldap) Create ppolicy.ldif from template
+  template:
+   src: ppolicy.ldif.j2
+   dest: /root/ppolicy.ldif
+
+- name: (openldap) Load ppolicy.ldif in LDAP
+  command: ldapadd -h localhost -D "cn=ldapadm,cn=config" -w {{ ldapadm_pw }}  -f /root/ppolicy.ldif
+  when: ldap_config.stat.exists == False
+
+- include_tasks: "mmaster.yml"
+  when:
+    - configure_mmaster == true
+    - ansible_distribution == "CentOS" and ansible_distribution_major_version > '6'
+
+- include_tasks: "mmaster-bsd.yml"
+  when:
+    - configure_mmaster == true
+    - ansible_distribution == "FreeBSD"
+
+- include_tasks: "memberof.yml"
+  when:
+    - configure_memberof | default(False) | bool
+    - ansible_distribution == "CentOS" and ansible_distribution_major_version > '6'
+
+- include_tasks: "memberof-bsd.yml"
+  when:
+    - configure_memberof | default(False) | bool
+    - ansible_distribution == "FreeBSD"
+
+- name: (openldap) create people ou
+  ldap_entry:
+   dn: ou=People,{{ dc_base }}
+   objectClass:
+     - organizationalUnit
+   attributes:
+    ou: People
+   bind_dn: cn=ldapadm,{{ dc_base }}
+   bind_pw: "{{ ldapadm_pw }}"
+   state: present
+
+- name: (openldap) create Group ou
+  ldap_entry:
+   dn: ou=Group,{{ dc_base }}
+   objectClass:
+    - organizationalUnit
+   attributes:
+    ou: Group
+   bind_dn: cn=ldapadm,{{ dc_base }}
+   bind_pw: "{{ ldapadm_pw }}"
+   state: present
+
+- name: (openldap) create ou services
+  ldap_entry:
+   dn: ou=services,{{ dc_base }}
+   objectClass:
+     - organizationalUnit
+   attributes:
+     ou: services
+   bind_dn: cn=ldapadm,{{ dc_base }}
+   bind_pw: "{{ ldapadm_pw }}"
+   state: present
+
+- name: (openldap) generate password for mail service user
+  shell: slappasswd -s {{ mail_bind_pw }}
+  register: enc_mail_bind_pw
+
+- name: (openldap) generate password for nextcloud service user
+  shell: slappasswd -s {{ nextcloud_bind_pw }}
+  register: enc_nextcloud_bind_pw
+
+- name: (openldap) create postfix service user
+  ldap_entry:
+   dn: uid=postfix,ou=services,{{ dc_base }}
+   objectClass:
+     - account
+     - simpleSecurityObject
+     - top
+   attributes:
+     uid: postfix
+     userpassword: "{{ enc_mail_bind_pw.stdout }}"
+   bind_dn: cn=ldapadm,{{ dc_base }}
+   bind_pw: "{{ ldapadm_pw }}"
+   state: present
+
+- name: (openldap) create nextcloud service user
+  ldap_entry:
+   dn: uid=nextcloud,ou=services,{{ dc_base }}
+   objectClass:
+     - account
+     - simpleSecurityObject
+     - top
+   attributes:
+     uid: nextcloud
+     userpassword: "{{ enc_nextcloud_bind_pw.stdout }}"
+   bind_dn: cn=ldapadm,{{ dc_base }}
+   bind_pw: "{{ ldapadm_pw }}"
+   state: present

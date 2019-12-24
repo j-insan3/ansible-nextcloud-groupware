@@ -1,0 +1,132 @@
+- name: (solr) Install java
+  yum:
+    name:
+      - java-1.8.0-openjdk.x86_64
+      - lsof
+    state: present
+
+- name: (solr) Download solr
+  get_url:
+    url: http://archive.apache.org/dist/lucene/solr/{{ solr_release }}/solr-{{ solr_release }}.tgz
+    dest: /opt/
+    force: no
+  tags: solr
+
+- name: (solr) extract solr install script
+  command: /usr/bin/tar xzf /opt/solr-{{ solr_release }}.tgz solr-{{ solr_release }}/bin/install_solr_service.sh --strip-components=2
+  args:
+    chdir: /opt
+    warn: False
+  tags: solr
+
+- name: (solr) check if solr already installed
+  stat:
+    path: "/opt/solr"
+  register: solr_installed
+  tags: solr
+
+- name: (solr) install solr
+  shell: '/opt/install_solr_service.sh /opt/solr-{{ solr_release }}.tgz'
+  args:
+    creates: /opt/solr-{{ solr_release }}/bin/solr
+  register: solr_install_script_result
+  when: solr_installed.stat.exists == False
+  tags: solr
+
+- name: (solr) upgrade solr if already installed
+  shell: '/opt/install_solr_service.sh /opt/solr-{{ solr_release }}.tgz -f'
+  args:
+    creates: /opt/solr-{{ solr_release }}/bin/solr
+  register: solr_upgrade_script_result
+  when: solr_installed.stat.exists == True
+  tags: solr
+
+- name: (solr) Ensure solr is stopped (RHEL / CentOS 7 workaround).
+  command: /usr/sbin/service solr stop
+  when: solr_install_script_result.changed
+  failed_when: false
+  tags: solr
+
+- name: (solr) Ensure solr is stopped after update ( Same Workaround )
+  command: /usr/sbin/service solr stop
+  when: solr_upgrade_script_result.changed
+  failed_when: false
+  tags: solr
+
+- name: (solr) Run systemd daemon_reload (RHEL / CentOS 7 workaround).
+  systemd:
+    name: solr
+    daemon_reload: yes
+  when: solr_install_script_result.changed
+  tags: solr
+
+- name: (solr) Start Solr correct systemd way
+  systemd:
+    name: solr
+    state: started
+  tags: solr
+
+- name: (solr) create dovecot instance in solr
+  command: /opt/solr/bin/solr create -c dovecot -n dovecot
+  become: yes
+  become_user: solr
+  args:
+    creates: /var/solr/data/dovecot
+  tags: solr
+
+- name: (solr) copy schema.xml for dovecot to solr dovecot dir
+  copy:
+    src: dovecot-solr-schema.xml
+    dest: /var/solr/data/dovecot/conf/schema.xml
+    group: solr
+    owner: solr
+    mode: 0644
+  tags: solr
+
+- name: (solr) copy solrconfig.xml for dovecot to solr dir
+  copy:
+    src: dovecot-solrconfig.xml
+    dest: /var/solr/data/dovecot/conf/solrconfig.xml
+    group: solr
+    owner: solr
+    mode: 0644
+  tags: solr
+
+- name: (solr) copy elevate.xml for dovecot t solr dir
+  copy:
+    src: elevate.xml
+    dest: /var/solr/data/dovecot/conf/elevate.xml
+    group: solr
+    owner: solr
+    mode: 0644
+  tags: solr
+
+- name: (solr) copy 90-fts.conf to dovecot
+  copy:
+    src: 90-fts.conf
+    dest: /etc/dovecot/conf.d/90-fts.conf
+    group: root
+    owner: root
+    mode: 0644
+  tags: solr
+
+- name: (solr) set solr optimize crontab
+  cron:
+    name: "optimize solr"
+    minute: "15"
+    hour: "2"
+    job: "/usr/bin/curl -s 'http://localhost:8983/solr/dovecot/update?optimize=true' > /dev/null"
+  tags: solr
+
+- name: (solr) set solr commit crontab
+  cron:
+    name: "commit solr database"
+    minute: "*/5"
+    job: "/usr/bin/curl -s 'http://localhost:8983/solr/dovecot/update?commit=true' > /dev/null"
+  tags: solr
+
+- name: (solr) Restart solr
+  systemd:
+    name: solr
+    state: restarted
+  tags: solr

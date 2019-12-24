@@ -1,0 +1,21 @@
+dn: olcDatabase={2}mdb,cn=config
+changetype: modify
+replace: olcSuffix
+olcSuffix: {{ dc_base }}
+-
+add: olcSyncRepl
+olcSyncRepl: rid=004 provider=ldap://{{ master_ldap1 }} binddn="cn=ldapadm,{{ dc_base }}" bindmethod=simple
+  credentials={{ ldapadm_pw }} searchbase="{{ dc_base }}" type=refreshOnly
+  interval=00:00:00:10 retry="5 5 300 5" timeout=1
+olcSyncRepl: rid=005 provider=ldap://{{ master_ldap2 }} binddn="cn=ldapadm,{{ dc_base }}" bindmethod=simple
+  credentials={{ ldapadm_pw }} searchbase="{{ dc_base }}" type=refreshOnly
+  interval=00:00:00:10 retry="5 5 300 5" timeout=1
+-
+add: olcDbIndex
+olcDbIndex: entryUUID  eq
+-
+add: olcDbIndex
+olcDbIndex: entryCSN  eq
+-
+add: olcMirrorMode
+olcMirrorMode: TRUE

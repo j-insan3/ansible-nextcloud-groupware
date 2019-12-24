@@ -1,0 +1,46 @@
+[roundcube]
+
+user = roundcube
+group = roundcube
+
+listen = /var/run/roundcube-php72-fpm.sock
+
+listen.owner = nginx
+listen.group = nginx
+listen.mode = 0660
+
+listen.allowed_clients = 127.0.0.1
+
+pm = dynamic
+
+pm.max_children = 50
+
+pm.start_servers = 5
+
+pm.min_spare_servers = 5
+
+pm.max_spare_servers = 35
+
+slowlog = /var/opt/remi/php72/log/php-fpm/www-slow.log
+
+php_admin_value[error_log] = /var/opt/remi/php72/log/php-fpm/www-error.log
+php_admin_flag[log_errors] = on
+
+php_value[session.save_handler] = files
+php_value[session.save_path]    = /var/opt/remi/php72/lib/php/roundcube_session
+php_value[soap.wsdl_cache_dir]  = /var/opt/remi/php72/lib/php/roundcube_wsdlcache
+php_value[opcache.file_cache]  = /var/opt/remi/php72/lib/php/roundcube_opcache
+php_value[opcache.enable]=1
+php_value[opcache.enable_cli]=1
+php_value[opcache.interned_strings_buffer]=8
+php_value[opcache.max_accelerated_files]=10000
+php_value[opcache.memory_consumption]=128
+php_value[opcache.save_comments]=1
+php_value[opcache.revalidate_freq]=1
+php_value[date.timezone]='Europe/Amsterdam'
+php_value[post_max_size]='20M'
+php_value[upload_max_filesize]='20M'
+
+
+
+env[PATH] = /usr/local/bin:/usr/bin:/bin

@@ -1,0 +1,14 @@
+# Authentication for LDAP users. Included from 10-auth.conf.
+#
+# <doc/wiki/AuthDatabase.LDAP.txt>
+hosts = {{ master_ldap1 }}:389 {% if master_ldap2 is defined %}{{ master_ldap2 }}:389{% endif %}
+
+dn = uid=postfix,ou=services,{{ dc_base }}
+dnpass = {{ mail_bind_pw }}
+ldap_version = 3
+base = ou=people,{{ dc_base }}
+user_attrs = mailHomeDirectory=home,mailUidNumber=uid,mailGidNumber=gid,mailStorageDirectory=mail
+user_filter = (&(objectClass=PostfixBookMailAccount)(uid=%n))
+pass_attrs = uid=user,userPassword=password
+pass_filter = (&(objectClass=PostfixBookMailAccount)(uid=%n))
+default_pass_scheme = SSHA

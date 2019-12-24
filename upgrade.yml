@@ -1,0 +1,30 @@
+# This playbook deploys a whole groupware stack with ldap, postfix, dovecot, nextcloud, z-push
+
+- hosts: ldap_server
+  sudo: yes
+  roles:
+   - ldap
+   - phpldapadmin
+
+
+- hosts: mail_server
+  sudo: yes
+  roles:
+   - mail
+
+- hosts: nextcloud_server
+  sudo: yes
+  roles:
+    - nextcloud
+
+- hosts: zpush_server
+  sudo: yes
+  roles:
+    - zpush
+
+- hosts: roundcube_server
+  sudo: yes
+  roles:
+    - roundcube
+  vars:
+    upgrade: True

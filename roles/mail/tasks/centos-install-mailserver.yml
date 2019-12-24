@@ -1,0 +1,95 @@
+# Install required packages
+
+- name: Install epel
+  yum:
+    name: epel-release
+    state: latest
+
+- name: add rspamd repo
+  yum_repository:
+    name: rspamd
+    description: rspamd
+    file: rspamd
+    baseurl: http://rspamd.com/rpm-stable/centos-7/x86_64/
+    gpgcheck: yes
+    enabled: yes
+    repo_gpgcheck: yes
+    gpgkey: http://rspamd.com/rpm/gpg.key
+
+- name: add dovecot 2.3 repo
+  yum_repository:
+    name: dovecot-2.3-latest
+    description: dovecot-2.3-latest
+    file: dovecot
+    baseurl: http://repo.dovecot.org/ce-2.3-latest/centos/$releasever/RPMS/$basearch
+    gpgcheck: yes
+    enabled: yes
+    gpgkey: https://repo.dovecot.org/DOVECOT-REPO-GPG
+
+
+- rpm_key:
+    state: present
+    key: https://rspamd.com/rpm/gpg.key
+
+- rpm_key:
+    state: present
+    key: https://repo.dovecot.org/DOVECOT-REPO-GPG
+
+- name: update yum package cache for rspamd
+  shell: yum -q makecache -y --disablerepo='*' --enablerepo=rspamd
+  args:
+   warn: false
+
+- name: setup ghettoforge repository for newer postfix
+  yum:
+    name: "http://mirror.ghettoforge.org/distributions/gf/gf-release-latest.gf.el7.noarch.rpm"
+    state: present
+  when: use_postfix3 | default(False)
+
+- name: Install mail packages (with default centos postfix)
+  yum:
+    name:
+      - postfix
+      - swaks
+      - dovecot
+      - dovecot-pigeonhole
+      - rspamd
+      - pypolicyd-spf
+      - libsemanage-python
+      - redis
+    state: present
+  when: not use_postfix3 | default(False)
+
+- name: Remove default postfix
+  yum:
+    name: postfix.x86_64
+    state: absent
+  when: use_postfix3 | default(False)
+
+- name: Install mail packages ( with postfix from ius.io )
+  yum:
+    name:
+      - postfix3
+      - postfix3-ldap
+      - postfix3-pcre
+      - swaks
+      - dovecot
+      - dovecot-pigeonhole
+      - rspamd
+      - pypolicyd-spf
+      - libsemanage-python
+      - redis
+    state: present
+    enablerepo: "gf-plus"
+  when: use_postfix3 | default(False)
+
+#- name: Set SELinux to allow clamav to scan
+#  seboolean:
+#   name: antivirus_can_scan_system
+#   state: yes
+#   persistent: yes
+
+- name: set selinux to permissive for now ( gives to much issues with antivirus spam etc...)
+  selinux:
+    policy: targeted
+    state: permissive

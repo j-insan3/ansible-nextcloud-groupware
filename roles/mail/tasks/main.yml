@@ -1,0 +1,281 @@
+- include_tasks: "centos-install-mailserver.yml"
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version > '6'
+
+- name: generate dhparam 512
+  command: openssl dhparam -out /etc/ssl/dh512.pem 512
+  args:
+    creates: /etc/ssl/dh512.pem
+
+- name: generate dhparam 2048
+  command: openssl dhparam -out /etc/ssl/dh2048.pem 2048
+  args:
+    creates: /etc/ssl/dh2048.pem
+
+- name: set permissions on dhparam 2048
+  file:
+    path: /etc/ssl/dh2048.pem
+    mode: 0644
+
+- name: set permissions on dhparam 512
+  file:
+    path: /etc/ssl/dh512.pem
+    mode: 0644
+
+- name: copy mailserver certificate
+  copy:
+    src: "{{ mailserver_cert }}"
+    dest: "/etc/pki/dovecot/certs/{{ mailserver_cert }}"
+    force: yes
+    group: root
+    owner: root
+    mode: 0644
+  when: mailserver_cert is defined
+
+- name: copy mailserver private key
+  copy:
+    src: "{{ mailserver_key }}"
+    dest: "/etc/pki/dovecot/private/{{ mailserver_key }}"
+    force: yes
+    group: root
+    owner: root
+    mode: 0440
+  when: mailserver_key is defined
+
+- name: Ensure group vmail exists
+  group:
+    name: vmail
+    gid: 5000
+    state: present
+    system: yes
+
+- name: Add vmail user
+  user:
+    name: vmail
+    comment: virtual mail user
+    uid: 5000
+    group: vmail
+    system: yes
+    home: /srv/vmail
+
+- name: (dovecot) copy 10-master.conf
+  copy:
+    src: 10-master.conf
+    dest: /etc/dovecot/conf.d/10-master.conf
+    force: yes
+    group: root
+    owner: root
+    mode: 0644
+
+- name: (dovecot) template 10-ssl.conf
+  template:
+    src: 10-ssl.conf.j2
+    dest: /etc/dovecot/conf.d/10-ssl.conf
+    force: yes
+    group: root
+    owner: root
+    mode: 0644
+
+- name: (dovecot) copy 20-imap.conf
+  copy:
+    src: 20-imap.conf
+    dest: /etc/dovecot/conf.d/20-imap.conf
+    force: yes
+    group: root
+    owner: root
+    mode: 0644
+
+- name: (dovecot) copy 20-lmtp.conf
+  copy:
+    src: 20-lmtp.conf
+    dest: /etc/dovecot/conf.d/20-lmtp.conf
+    force: yes
+    group: root
+    owner: root
+    mode: 0644
+
+- name: (postfix) create main.cf
+  template:
+    src: main.cf.j2
+    dest: /etc/postfix/main.cf
+
+- name: (postfix) create master.cf
+  template:
+    src: master.cf.j2
+    dest: /etc/postfix/master.cf
+
+- name: (postfix) create ldap_virtual_recipients.cf
+  template:
+    src: ldap_virtual_recipients.cf.j2
+    dest: /etc/postfix/ldap_virtual_recipients.cf
+
+- name: (postfix) create ldap_virtual_aliases.cf
+  template:
+    src: ldap_virtual_aliases.cf.j2
+    dest: /etc/postfix/ldap_virtual_aliases.cf
+
+- name: (postfix) create ldap_virtual_domains.cf
+  template:
+    src: ldap_virtual_domains.cf.j2
+    dest: /etc/postfix/ldap_virtual_domains.cf
+
+- name: (dovecot) create dovecot-ldap.conf.ext
+  template:
+    src: dovecot-ldap.conf.ext.j2
+    dest: /etc/dovecot/dovecot-ldap.conf.ext
+
+- name: (dovecot) set authmech to plain login
+  lineinfile:
+    path: /etc/dovecot/conf.d/10-auth.conf
+    regexp: '^auth_mechanisms'
+    line: 'auth_mechanisms = plain login'
+
+- name: (dovecot) unset auth-system in 10-auth
+  lineinfile:
+    path: /etc/dovecot/conf.d/10-auth.conf
+    regexp: '!include auth-system.conf.ext'
+    line: '#!include auth-system.conf.ext'
+
+- name: (dovecot) set auth-ldap in 10-auth
+  lineinfile:
+    path: /etc/dovecot/conf.d/10-auth.conf
+    line: '!include auth-ldap.conf.ext'
+
+- name: (dovecot) setup solr full text search option in 10-mail
+  lineinfile:
+    path: /etc/dovecot/conf.d/10-mail.conf
+    line: 'mail_plugins = $mail_plugins fts fts_solr'
+
+- name: (dovecot) set dovecot log to syslog
+  ini_file:
+    path: /etc/dovecot/conf.d/10-logging.conf
+    section: null
+    option: log_path
+    value: syslog
+
+- name: (dovecot) set syslog facility to mail
+  ini_file:
+    path: /etc/dovecot/conf.d/10-logging.conf
+    section: null
+    option: syslog_facility
+    value: mail
+
+- name: (dovecot) log failed login
+  ini_file:
+    path: /etc/dovecot/conf.d/10-logging.conf
+    section: null
+    option: auth_verbose
+    value: 'yes'
+
+- name: (dovecot) set postmaster address in dovecot
+  ini_file:
+    path: /etc/dovecot/conf.d/15-lda.conf
+    section: null
+    option: postmaster_address
+    value: "{{ postmaster_address }}"
+
+- name: (dovecot) enable mail plugin sieve for lda
+  lineinfile:
+    path: /etc/dovecot/conf.d/15-lda.conf
+    insertafter: '^protocol lda '
+    line: '  mail_plugins = $mail_plugins sieve'
+
+- name: (dovecot) copy 15-mailboxes.conf
+  copy: src=15-mailboxes.conf dest=/etc/dovecot/conf.d/15-mailboxes.conf owner=root group=root mode=644
+
+- name: (dovecot) enable sieve
+  ini_file:
+    path: /etc/dovecot/conf.d/20-managesieve.conf
+    section: null
+    option: protocols
+    value: $protocols sieve
+
+- name: (dovecot) set sieve_before to /etc/dovecot/sieve-before.d ( for move junk to spamfolder)
+  lineinfile:
+    path: /etc/dovecot/conf.d/90-sieve.conf
+    insertafter: '#sieve_before'
+    line: '  sieve_before = /etc/dovecot/sieve-before.d'
+
+- name: (dovecot) set recipient_delimiter for sieve
+  lineinfile:
+    path: /etc/dovecot/conf.d/90-sieve.conf
+    insertafter: '#recipient_delimiter'
+    line: '  recipient_delimiter = +'
+
+- name: (dovecot) create sieve global dir
+  file:
+    path: /etc/dovecot/sieve
+    state: directory
+    owner: vmail
+    group: vmail
+    mode: 0755
+
+- name: (dovecot) create sieve before dir
+  file:
+    path: /etc/dovecot/sieve-before.d
+    state: directory
+    owner: vmail
+    group: vmail
+    mode: 0755
+
+- name: (dovecot) make sieve rule for spam
+  copy:
+   src: global.sieve
+   dest: /etc/dovecot/sieve-before.d/global.sieve
+   group: vmail
+   owner: vmail
+   mode: 0644
+
+- name: (dovecot) make sieve rule for learn spam
+  copy:
+   src: learn-spam.sieve
+   dest: /etc/dovecot/sieve/learn-spam.sieve
+   group: vmail
+   owner: vmail
+   mode: 0644
+
+- name: (dovecot) copy 90-imapsieve
+  copy:
+   src: 90-imapsieve.conf
+   dest: /etc/dovecot/conf.d/90-imapsieve.conf
+   owner: root
+   group: root
+
+- name: (dovecot) make sieve rule for learn ham
+  copy:
+   src: learn-ham.sieve
+   dest: /etc/dovecot/sieve/learn-ham.sieve
+   group: vmail
+   owner: vmail
+   mode: 0644
+
+- name: (dovecot) start and enable dovecot
+  service:
+   name: dovecot
+   enabled: yes
+   state: restarted
+
+- name: (dovecot) compile sieve rule move spam
+  command: /usr/bin/sievec /etc/dovecot/sieve-before.d/global.sieve
+
+- name: (dovecot) compile sieve rule learn spam
+  command: /usr/bin/sievec /etc/dovecot/sieve/learn-spam.sieve
+
+- name: (dovecot) compile sieve rule learn ham
+  command: /usr/bin/sievec /etc/dovecot/sieve/learn-ham.sieve
+
+- include_tasks: "centos-solr-fts.yml"
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version > '6'
+  tags: solr
+
+- include_tasks: "rspamd.yml"
+
+- name: (dovecot) start and enable dovecot
+  service:
+   name: dovecot
+   enabled: yes
+   state: restarted
+
+- name: (postfix) Restart postfix
+  service:
+    name: postfix
+    state: restarted

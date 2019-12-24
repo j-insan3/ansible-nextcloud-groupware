@@ -1,0 +1,110 @@
+# Install required packages
+
+- name: Install epel
+  yum: 
+    name: epel-release
+    state: latest
+
+# disable selinux, need to do some more research on what to set
+- name: set selinux to permissive for now
+  selinux:
+    policy: targeted
+    state: permissive
+
+- name: add MariaDB repo
+  yum_repository:
+    name: MariaDB
+    description: Official MariaB Repo
+    baseurl: http://yum.mariadb.org/10.3/centos7-amd64
+    gpgcheck: yes
+    enabled: yes
+    gpgkey: https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
+
+- name: Install remi repo.
+  yum:
+    name: "https://rpms.remirepo.net/enterprise/remi-release-7.rpm"
+    state: present
+
+- name: Import remi key
+  rpm_key:
+      key: "http://rpms.remirepo.net/RPM-GPG-KEY-remi"
+      state: present
+
+- name: Install Packages for NextCloud ( nginx, mariadb )
+  yum: 
+    name:
+      - MariaDB-server
+      - MariaDB-client
+      - redis
+      - php72-php
+      - php72-php-fpm
+      - php72-php-dom
+      - php72-php-zip
+      - php72-php-gd
+      - php72-php-mbstring
+      - php72-php-posix
+      - php72-php-opcache
+      - php72-php-mysql
+      - php72-php-pecl-redis
+      - php72-php-ldap
+      - nginx
+      - certbot 
+      - certbot-nginx
+      - unzip
+      - MySQL-python
+    state: present
+
+- name: create nextcloud session dir
+  file:
+    path: /var/opt/remi/php72/lib/php/nc_session
+    state: directory
+    owner: nextcloud
+    group: nextcloud
+    recurse: yes
+    mode: 0770
+
+- name: create nextcloud opcache dir
+  file:
+    path: /var/opt/remi/php72/lib/php/nc_opcache
+    state: directory
+    owner: nextcloud
+    group: nextcloud
+    recurse: yes
+    mode: 0770
+
+- name: create nextcloud wsdl dir
+  file:
+    path: /var/opt/remi/php72/lib/php/nc_wsdlcache
+    state: directory
+    owner: nextcloud
+    group: nextcloud
+    recurse: yes
+    mode: 0770
+
+- name: create nextcloud php-fpm config
+  template:
+    src: nextcloud_php72-fpm.conf.j2
+    dest: /etc/opt/remi/php72/php-fpm.d/nextcloud-php72-fpm.conf
+
+- name: delete default www fpm
+  file:
+    path: /etc/opt/remi/php72/php-fpm.d/www.conf
+    state: absent
+
+- name: start php72-fpm
+  systemd:
+     name: php72-php-fpm
+     state: started
+     enabled: yes
+
+- name: start redis
+  systemd:
+    name: redis
+    state: started
+    enabled: yes
+
+- name: start mariadb
+  systemd:
+    name: mariadb
+    state: started
+    enabled: yes

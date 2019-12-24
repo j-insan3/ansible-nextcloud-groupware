@@ -1,0 +1,116 @@
+- name: (roundcube) Ensure group "roundcube" exists
+  group:
+    name: roundcube
+    gid: 5003
+    state: present
+    system: yes
+  when: first_install | default(False) | bool
+
+- name: (roundcube) Add roundcube user
+  user:
+    name: roundcube
+    comment: roundcube user
+    uid: 5003
+    group: roundcube
+    system: yes
+    home: /var/www/roundcube
+  when: first_install | default(False) | bool
+
+- name: (roundcube) create roundcube www dir
+  file:
+    path: /var/www/roundcube
+    state: directory
+    owner: roundcube
+    group: roundcube
+    mode: 0755
+  when: first_install | default(False) | bool
+
+- include_tasks: "centos-install-roundcube.yml"
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version > '6'
+
+- include_tasks: "mariadb-setup.yml"
+  when: first_install | default(False) | bool
+
+- name: (roundcube) create roundcube nginx config
+  template:
+    src: roundcube_nginx.conf.j2
+    dest: /etc/nginx/conf.d/roundcube.conf
+    force: no
+  when: first_install | default(False) | bool
+
+- name: (roundcube) create directory for nginx certs
+  file:
+    path: /etc/ssl/nginx
+    state: directory
+  when: first_install | default(False) | bool
+
+- name: (roundcube) create temporary selfsigned certificate for roundcube {{ roundcube_hostname }}
+  command: openssl req -newkey rsa:2048 -x509 -nodes -out /etc/ssl/nginx/{{ roundcube_hostname }}.crt -keyout /etc/ssl/nginx/{{ roundcube_hostname }}.key -days 18800 -subj "/CN={{ roundcube_hostname }}"
+  args:
+    creates: /etc/ssl/nginx/{{ roundcube_hostname }}.crt
+  when: first_install | default(False) | bool
+
+- name: (roundcube) Restart nginx
+  service:
+    name: nginx
+    state: restarted
+
+- name: (roundcube) "Download & extract Roundcube"
+  unarchive:
+    remote_src: yes
+    src: "https://github.com/roundcube/roundcubemail/releases/download/{{ roundcube_release }}/roundcubemail-{{ roundcube_release }}-complete.tar.gz"
+    dest: "/var/www/roundcube"
+    creates: "/var/www/roundcube/index.php"
+    extra_opts: "--strip-components=1"
+    owner: roundcube
+    group: roundcube
+  when: first_install | default(False) | bool
+
+- name: (roundcube) "Download & extract Roundcube for update"
+  unarchive:
+    remote_src: yes
+    src: "https://github.com/roundcube/roundcubemail/releases/download/{{ roundcube_release }}/roundcubemail-{{ roundcube_release }}-complete.tar.gz"
+    dest: "/tmp"
+    owner: roundcube
+    group: roundcube
+  when: upgrade | default(False) | bool
+
+- name: (roundcube) Launch update script
+  shell: "/usr/bin/yes | /tmp/roundcubemail-{{ roundcube_release }}/bin/installto.sh /var/www/roundcube/"
+  when: upgrade | default(False) | bool
+
+- name: (roundcube) "create roundcube config"
+  template:
+     src: roundcube-config.inc.php.j2
+     dest: /var/www/roundcube/config/config.inc.php
+     owner: roundcube
+     group: roundcube
+  when: first_install | default(False) | bool
+
+- name: (roundcube) import roundcube schema
+  mysql_db:
+     state: import
+     name: roundcube
+     target: /var/www/roundcube/SQL/mysql.initial.sql
+  ignore_errors: yes
+  when: first_install | default (false)
+
+- name: (roundcube) Download carddav plugin
+  unarchive:
+    remote_src: yes
+    src: "https://github.com/blind-coder/rcmcarddav/releases/download/v{{ carddav_plugin_version }}/carddav-{{ carddav_plugin_version }}.tar.bz2"
+    dest: "/var/www/roundcube/plugins"
+    owner: roundcube
+    group: roundcube
+  when: first_install | default(False) | bool
+
+- name: (roundcube) create roundcube carddav plugin config
+  template:
+    src: carddav-config.inc.php.j2
+    dest: /var/www/roundcube/plugins/carddav/config.inc.php
+    force: yes
+  when: first_install | default(False) | bool
+
+
+- name: (roundcube) setup letsencrypt cert
+  command: certbot --nginx -n --agree-tos --email {{ certbot_address }} -d {{ roundcube_hostname }}

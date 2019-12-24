@@ -1,0 +1,111 @@
+#global configuration
+dn: cn=config
+objectClass: olcGlobal
+cn: config
+olcArgsFile: /var/run/openldap/slapd.args
+olcPidFile: /var/run/openldap/slapd.pid
+olcTLSCACertificatePath: /usr/local/etc/openldap/certs
+olcTLSCertificateFile: /usr/local/etc/openldap/certs/ldap.crt
+olcTLSCertificateKeyFile: /usr/local/etc/openldap/certs/ldap.key
+structuralObjectClass: olcGlobal
+
+# Load the mdb backend
+dn: cn=module,cn=config
+objectClass: olcModuleList
+cn: module
+olcModulepath: /usr/local/libexec/openldap
+olcModuleload: back_mdb
+olcModuleload: back_monitor
+
+# Load ppolicy
+dn: cn=module,cn=config
+objectClass: olcModuleList
+cn: module
+olcModuleLoad: ppolicy.la
+
+# Load external definitions
+dn: cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: schema
+
+
+# You may want to add more, make sure to satisfy any dependencies though
+include: file:///usr/local/etc/openldap/schema/core.ldif
+include: file:///usr/local/etc/openldap/schema/cosine.ldif
+include: file:///usr/local/etc/openldap/schema/nis.ldif
+include: file:///usr/local/etc/openldap/schema/inetorgperson.ldif
+include: file:///usr/local/etc/openldap/schema/openldap.ldif
+include: file:///usr/local/etc/openldap/schema/postfix-book.ldif
+include: file:///usr/local/etc/openldap/schema/ppolicy.ldif
+
+
+# front end db
+dn: olcDatabase=frontend,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcFrontendConfig
+olcDatabase: frontend
+olcAccess: to * by * read
+olcSizelimit: size.soft=10000 size.hard=1000000
+olcTimelimit: time.soft=300 time.hard=3600
+
+# configuration db, we define a separate RootDN and passwd, use this one to change the config
+dn: olcDatabase=config,cn=config
+objectClass: olcDatabaseConfig
+olcDatabase: config
+olcRootDN: cn=ldapadm,cn=config
+# generate a password by running slappasswd
+olcRootPW: {{ ldapadm_pw_enc.stdout }}
+olcMonitoring: FALSE
+olcAccess: to * by * none
+
+dn: olcDatabase=monitor,cn=config
+objectClass: olcDatabaseConfig
+olcDatabase: monitor
+olcAddContentAcl: FALSE
+olcLastMod: TRUE
+olcMaxDerefDepth: 15
+olcReadOnly: FALSE
+olcSyncUseSubentry: FALSE
+olcMonitoring: FALSE
+olcAccess: to dn.subtree="cn=monitor"
+  by dn.exact="cn=ldapadm,cn=config" read
+  by dn.exact="cn=ldapadm,{{ dc_base }}" read
+  by * none
+
+dn: olcDatabase=mdb,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcMdbConfig
+olcDatabase: mdb
+olcMonitoring: TRUE
+olcDbMaxSize: 42949672960
+olcSuffix: {{ dc_base }}
+olcDbDirectory: /var/db/openldap-data
+olcRootDN: cn=ldapadm,{{ dc_base }}
+# generate a password by running slappasswd
+olcRootPW: {{ ldapadm_pw_enc.stdout }}
+olcDbIndex: uid pres,eq
+olcDbIndex: cn,sn pres,eq,approx,sub
+olcDbIndex: mail pres,eq,sub
+olcDbIndex: objectClass pres,eq
+olcDbIndex: loginShell pres,eq
+# Tuning, not sure what these do maybe test them
+#olcDbConfig: set_cachesize 0 2097152 0
+#olcDbConfig: set_lk_max_objects 1500
+#olcDbConfig: set_lk_max_locks 1500
+#olcDbConfig: set_lk_max_lockers 1500
+#olcLastMod: TRUE
+#olcMonitoring: TRUE
+#olcDbCheckpoint: 512 30
+olcAccess: to attrs=userPassword
+   by self write
+   by anonymous auth
+   by dn.base="cn=ldapadm,{{ dc_base }}" write
+   by dn="uid=nextcloud,ou=services,{{ dc_base }}" write
+   by dn="uid=postfix,ou=services,{{ dc_base }}" read
+   by * none
+olcAccess: to attrs=shadowLastChange
+   by self write
+   by * read
+olcAccess: to *
+   by dn.exact="cn=ldapadm,{{ dc_base }}" write
+   by * read

@@ -1,0 +1,60 @@
+- name: (roundcube mariadb) "set mysql"
+  mysql_user:
+    name: root
+    host: "{{ item }}"
+    password: "{{ roundcube_mysql_root_pw }}"
+    login_user: root
+    login_password: ""
+    check_implicit_admin: yes
+    priv: "*.*:ALL,GRANT"
+  with_items:
+    - 127.0.0.1
+    - ::1
+    - localhost
+  ignore_errors: yes
+
+- name: (roundcube mariadb) "Delete anonymous user."
+  mysql_user:
+    user: ""
+    state: "absent"
+    login_password: "{{ roundcube_mysql_root_pw }}"
+    login_user: root
+  ignore_errors: yes
+
+- name: (roundcube mariadb) "delete test database"
+  mysql_db:
+    name: test
+    state: absent
+    login_password: "{{ roundcube_mysql_root_pw }}"
+    login_user: root
+  ignore_errors: yes
+
+- name: (roundcube mariadb) "Check credentials"
+  stat: "path=/root/.my.cnf"
+  register: roundcube_mysql_mycred
+
+- name: (roundcube mariadb) create .my.cnf in /root
+  block:
+  - name: "Make the file .my.cnf"
+    file: path=/root/.my.cnf state=touch mode="0640"
+
+- name: (roundcube mariadb) "Add content to .my.cnf"
+  blockinfile:
+    dest: /root/.my.cnf
+    block: |
+      [client]
+      user=root
+      password="{{ roundcube_mysql_root_pw }}"
+  when: roundcube_mysql_mycred.stat.exists is defined and not roundcube_mysql_mycred.stat.exists
+
+- name: (roundcube mariadb) "add nextcloud database {{ roundcube_db_name }}."
+  mysql_db:
+    name: "{{ roundcube_db_name }}"
+    state: present
+
+- name: (roundcube mariadb) "Configure the database user."
+  mysql_user:
+    name: "{{ roundcube_db_admin }}"
+    password: "{{ roundcube_db_pw }}"
+    priv: "{{ roundcube_db_name }}.*:ALL"
+    state: present

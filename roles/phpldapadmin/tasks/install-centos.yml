@@ -1,0 +1,56 @@
+- name: Make sure EPEL is installed
+  yum:
+   name: epel-release
+   state: latest
+
+- name: (CentOS)(phpldapadmin) Install phpldapadmin
+  yum:
+   name: phpldapadmin
+   state: latest
+
+- name: (CentOS)(phpldapadmin) Install python Selinux
+  yum:
+   name: libsemanage-python
+   state: latest
+
+- name: (CentOS)(phpldapadmin) Set SELinux to allow httpd to ldap
+  seboolean:
+   name: httpd_can_connect_ldap
+   state: yes
+   persistent: yes
+
+- name: (CentOS)(phpldapadmin) disable firwalld
+  service:
+   name: firewalld
+   enabled: no
+   state: stopped
+  when: disable_firewall == true
+
+- name: (CentOS)(phpldapadmin) allow access to phpldapadmin from outside
+  lineinfile:
+   path: /etc/httpd/conf.d/phpldapadmin.conf
+   regexp: 'Require'
+   line: '    Require all granted'
+
+- name: (CentOS)(phpldapadmin) Create config.php from template
+  template:
+   src: config.php.j2
+   dest: /etc/phpldapadmin/config.php
+
+- name: (CentOS)(phpldapadmin) change apache listen port
+  lineinfile:
+    path: /etc/httpd/conf/httpd.conf
+    regexp: '^Listen '
+    line: 'Listen {{ httpd_port }}'
+
+- name: (CentOS)(phpldapadmin) start apache webserver
+  service:
+   name: httpd
+   enabled: yes
+   state: started
+
+- name: (CentOS)(phpldapadmin) copy nextcloud mail ldap template
+  copy: src=custom_nextcloudMailAccount.xml dest=/usr/share/phpldapadmin/templates/creation/custom_nextcloudMailAccount.xml owner=root group=root mode=644
+
+- name: (CentOS)(phpldapadmin) copy nextcloud mail ldap posix template
+  copy: src=custom_posixNextcloudMailAccount.xml dest=/usr/share/phpldapadmin/templates/creation/custom_posixNextcloudMailAccount.xml owner=root group=root mode=644

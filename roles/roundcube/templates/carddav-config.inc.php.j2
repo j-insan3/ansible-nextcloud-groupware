@@ -1,0 +1,19 @@
+<?php
+$prefs['Nextcloud'] = array(
+	// required attributes
+	'name'         =>  'Nextcloud',
+	// will be substituted for the roundcube username
+	'username'     =>  '%u',
+	// will be substituted for the roundcube password
+	'password'     =>  '%p',
+	// %u will be substituted for the CardDAV username
+	'url'          =>  'https://{{ nextcloud_host_name }}/remote.php/dav/addressbooks/users/%u/contacts/',
+
+	'active'       =>  true,
+	'readonly'     =>  false,
+	'refresh_time' => '00:15:00',
+	'use_categories' => 'true',
+
+	'fixed'        =>  array( 'username' ),
+	'hide'        =>  false,
+);

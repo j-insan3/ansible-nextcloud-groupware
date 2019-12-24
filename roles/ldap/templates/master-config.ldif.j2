@@ -1,0 +1,30 @@
+### Update Server ID with LDAP URL ###
+
+dn: cn=config
+changetype: modify
+replace: olcServerID
+olcServerID: 1 ldap://{{  master_ldap1 }}
+olcServerID: 2 ldap://{{  master_ldap2 }}
+
+### Enable Config Replication###
+
+dn: olcOverlay=syncprov,olcDatabase={0}config,cn=config
+changetype: add
+objectClass: olcOverlayConfig
+objectClass: olcSyncProvConfig
+olcOverlay: syncprov
+
+### Adding config details for confDB replication ###
+
+dn: olcDatabase={0}config,cn=config
+changetype: modify
+add: olcSyncRepl
+olcSyncRepl: rid=001 provider=ldap://{{  master_ldap1 }} binddn="cn=config"
+  bindmethod=simple credentials={{ ldapadm_pw }} searchbase="cn=config"
+  type=refreshAndPersist retry="5 5 300 5" timeout=1
+olcSyncRepl: rid=002 provider=ldap://{{  master_ldap2 }} binddn="cn=config"
+  bindmethod=simple credentials={{ ldapadm_pw }} searchbase="cn=config"
+  type=refreshAndPersist retry="5 5 300 5" timeout=1
+-
+add: olcMirrorMode
+olcMirrorMode: TRUE

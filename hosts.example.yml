@@ -1,0 +1,104 @@
+#Use this file to define the server roles. Also vars can be put here but you can do at anyhere you want of course. I just thought for me it was easy to put it all together.
+
+all:
+ hosts:
+  ldap1.example.loc:
+  ldap2.example.loc:
+   slave: true # Always true actually
+   ansible_python_interpreter: /usr/local/bin/python2.7 # needed if the server is running in a FreeNAS jail
+ children:
+  ldap_server:
+   hosts:
+    ldap1.example.loc:
+    ldap2.example.loc:
+  mail_server:
+   hosts:
+    mta1.example.loc:
+  nextcloud_server:
+   hosts:
+    web1.example.loc:
+  zpush_server:
+   hosts:
+    web1.example.loc:
+  roundcube_server:
+   hosts:
+    web1.example.loc:
+
+ vars:
+    dc_base: dc=example,dc=net # The initial DC
+    first_domain: example.net # the first domain you want to receive mail on
+    ldapadm_pw: p@$$w0rd # password for the ldap admin user
+    ldap_server_name: ldap1.example.loc # used as the CN in the ceritificate for ldaps
+    organisation: "Acme Inc" # organisation in ldap
+    disable_firewall: true # disable firewalld?
+    configure_mmaster: true # set to true to configure syncprov ldap sync. Needs a second ldap server of course.
+    configure_memberof: True # set to true if you want memberoff available in ldap.
+    master_ldap1: ldap1.example.loc # name of the primary ldap server
+    # master ldap2 server is optional, only needed if multi-master is configured, comment out if not needed
+    master_ldap2: ldap2.example.loc
+    sync_password: syncpassw0rd # syncprov password
+
+    httpd_port: 8080 # port apache will listen to for managment, used in both ldap (phpldapadmin) and mail role (rspamd reverse proxy)
+
+    FQDN_mailserver: mail.example.net # hostname in postfix (main.cf)
+    allowed_network: 10.0.0.0/8 # allowed network for relaying without authentication
+    mail_bind_pw: GyZG6GeX # password used to bind postfix and dovecot to ldap. Used in both ldap and mail roles
+    nextcloud_bind_pw: MfD3WybO # password used to bind nextcloud to ldap. Used in both ldap and nextcloud roles
+    postmaster_address: postmaster@example.net
+    certbot_address: email@example.net # mail adres letsencrypt wil notifiy you on
+
+### set use postfix3 to true if you need newer postfix on CentOS, default CentOS postix is unable to check voor DANE ###
+    use_postfix3: true
+    use_dane: true # set to false if postfix3 is false!
+    mailserver_cert: example.net.crt # put files in files folder
+    mailserver_key: example.net.key
+    solr_release: 8.3.1 # The solr version you want for full text search
+    rspamd_password: rspamdpassword # rspamd password
+    setup_rspamd_proxy: True # set to true to install apache as reverse proxy for rspamd managment, you probalbly want this.
+
+
+    nextcloud_host_name: nextcloud.example.net # hostname you want nextcloud to listen on
+    nextcloud_release: 17
+    nextcloud_mysql_root_pw: C#Kr0nAvdsq$7fQ # mysql root password
+    nextcloud_db_name: ncdb # database name for nextcloud
+    nextcloud_db_pw: C#Kr0nAvdsq$7fQ # database password for nextcloud
+    nextcloud_db_admin: nextcloud # database user for nextcloud
+    nc_admin_user: admin # initial nextcloud admin
+    nc_admin_pw: !R!fxQLN # initial nextcloud admin password
+    nextcloud_data_dir: "/data" # where to put nextcloud user data
+    nextcloud_redis_settings:
+     - { name: 'memcache.local', value: '\OC\Memcache\Redis' }
+     - { name: 'memcache.locking', value: '\OC\Memcache\Redis' }
+     - { name: 'redis host', value: 'localhost' }
+     - { name: 'redis port', value: '6379'}
+    nextcloud_mail_settings: # used for autologon nextcloud mail app to mailserver
+     - { name: 'email', value: '%EMAIL%' }
+     - { name: 'imapHost', value: 'mta1.example.loc' }
+     - { name: 'imapPort', value: '993' }
+     - { name: 'imapUser', value: '%USERID%'}
+     - { name: 'imapSslMode', value: 'ssl'}
+     - { name: 'smtpHost', value: 'mta1.example.loc'}
+     - { name: 'smtpPort', value: '587'}
+     - { name: 'smtpUser', value: '%USERID%'}
+     - { name: 'smtpSslMode', value: 'tls'}
+
+# Needed if you want zpush
+    zpush_hostname: sync.example.net
+    zpush_autodiscover_hostname: autodiscover.example.net
+    zpush_imap_server: mail.example.net
+    zpush_smtp_server: mail.example.net
+# Needed if you want Roundcube
+    roundcube_release: 1.4.0
+    roundcube_hostname: webmail.example.net # hostname you want roundcube to listen on
+    roundcube_db_name: roundcube
+    roundcube_db_pw: C#Kr0nAvdsq$7fQ
+    roundcube_db_admin: roundcube
+    roundcube_mysql_root_pw: "{{ nextcloud_mysql_root_pw }}"
+    roundcube_imap_host: mail.example.net # hostname of your mailserver
+    roundcube_smtp_host: mail.example.net
+    roundcube_support_url: example.net/help # need to create this later
+    roundcube_des_key: mRrptD5KiVQ4Aozlt7XdhgWi
+    roundcube_service_name: "example.net webmail"
+    roundcube_ldap_host1: "{{ master_ldap1 }}" # for ldap password change from roundcube
+    roundcube_ldap_host2: "{{ master_ldap2 }}"
+    carddav_plugin_version: 3.0.3

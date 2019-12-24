@@ -1,0 +1,70 @@
+- name: (nextcloud mariadb) "set mysql"
+  mysql_user:
+    name: root
+    host: "{{ item }}"
+    password: "{{ nextcloud_mysql_root_pw }}"
+    login_user: root
+    login_password: ""
+    check_implicit_admin: yes
+    priv: "*.*:ALL,GRANT"
+  with_items:
+    - 127.0.0.1
+    - ::1
+    - localhost
+  ignore_errors: yes
+
+- name: (nextcloud mariadb) "Delete anonymous user."
+  mysql_user:
+    user: ""
+    state: "absent"
+    login_password: "{{ nextcloud_mysql_root_pw }}"
+    login_user: root
+  ignore_errors: yes
+
+- name: (nextcloud mariadb) "delete test database"
+  mysql_db:
+    name: test
+    state: absent
+    login_password: "{{ nextcloud_mysql_root_pw }}"
+    login_user: root
+  ignore_errors: yes
+
+- name: (nextcloud mariadb) "Check credentials"
+  stat: "path=/root/.my.cnf"
+  register: nc_mysql_mycred
+
+- name: (nextcloud mariadb) create .my.cnf in /root
+  block:
+  - name: "Make the file .my.cnf"
+    file: path=/root/.my.cnf state=touch mode="0640"
+
+- name: (nextcloud mariadb) "Add content to .my.cnf"
+  blockinfile:
+    dest: /root/.my.cnf
+    block: |
+      [client]
+      user=root
+      password="{{ nextcloud_mysql_root_pw }}"
+  when: nc_mysql_mycred.stat.exists is defined and not nc_mysql_mycred.stat.exists
+
+#- name: "Set mysql confing option for nextcloud"
+#  copy:
+#    dest: /etc/mysql/conf.d/nextcloud.cnf
+#    src: files/mysql_nextcloud.cnf
+#  notify: restart mysql
+
+#- name: "Generate database user Password."
+#  set_fact: nextcloud_db_pwd="{{ lookup( 'password', 'nextcloud_instances/'+ nextcloud_instance_name +'/db_admin.pwd' ) }}"
+#  when: nextcloud_db_pwd is not defined
+
+- name: (nextcloud mariadb) "add nextcloud database {{ nextcloud_db_name }}."
+  mysql_db:
+    name: "{{ nextcloud_db_name }}"
+    state: present
+
+- name: (nextcloud mariadb) "Configure the database user."
+  mysql_user:
+    name: "{{ nextcloud_db_admin }}"
+    password: "{{ nextcloud_db_pw }}"
+    priv: "{{ nextcloud_db_name }}.*:ALL"
+    state: present

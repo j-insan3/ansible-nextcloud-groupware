@@ -1,0 +1,48 @@
+- name: (FreeBSD) Install packages
+  pkgng:
+    name:
+      - apache24
+      - mod_php72
+    state: present
+
+- name: (FreeBSD) Install phpldapadmin from ports
+  shell: export BATCH=yes && cd /usr/ports/net/phpldapadmin && make install clean
+  args:
+   creates: /usr/local/www/phpldapadmin
+
+- name: (FreeBSD) add phpldap to apache configuration
+  blockinfile:
+    path: /usr/local/etc/apache24/httpd.conf
+    block: |
+     Alias /phpldapadmin/ "/usr/local/www/phpldapadmin/htdocs/"
+     <Directory "/usr/local/www/phpldapadmin/htdocs">
+        Options none
+        AllowOverride none
+        Require all granted
+     </Directory>
+
+- name: (FreeBSD)(phpldapadmin) Create config.php from template
+  template:
+   src: config-bsd.php.j2
+   dest: /usr/local/www/phpldapadmin/config/config.php
+
+- name: (FreeBSD)(phpldapadmin) change apache listen port
+  lineinfile:
+    path: /usr/local/etc/apache24/httpd.conf
+    regexp: '^Listen '
+    line: 'Listen {{ httpd_port }}'
+
+- name: (FreeBSD)(phpldapadmin) copy php.conf to apachedir
+  copy: src=php.conf dest=/usr/local/etc/apache24/Includes/php.conf owner=root group=wheel mode=644
+
+- name: (FreeBSD)(phpldapadmin) start apache webserver
+  service:
+   name: apache24
+   enabled: yes
+   state: started
+
+- name: (FreeBSD)(phpldapadmin) copy nextcloud mail ldap template
+  copy: src=custom_nextcloudMailAccount.xml dest=/usr/local/www/phpldapadmin/templates/creation/custom_nextcloudMailAccount.xml owner=root group=wheel mode=644
+
+- name: (FreeBSD)(phpldapadmin) copy nextcloud mail ldap posix template
+  copy: src=custom_posixNextcloudMailAccount.xml dest=/usr/local/www/phpldapadmin/templates/creation/custom_posixNextcloudMailAccount.xml owner=root group=wheel mode=644

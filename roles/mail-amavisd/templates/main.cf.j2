@@ -1,0 +1,218 @@
+###################################################################################################
+### Base Settings ###
+#####################
+
+# Listen on all interfaces
+inet_interfaces = all
+
+# Use TCP IPv4
+inet_protocols = ipv4
+
+# Greet connecting clients with this banner
+smtpd_banner = $myhostname ESMTP $mail_name
+
+# Fully-qualified hostname
+myhostname = {{ FQDN_mailserver }}
+
+# Do not append domain part to incomplete addresses (this is the MUA's job)
+append_dot_mydomain = no
+
+# Trusted networks/hosts (these are allowed to relay without authentication)
+mynetworks =
+    # Local
+    127.0.0.0/8
+
+
+###################################################################################################
+### Local Transport ###
+#######################
+
+# Disable local transport (so that system accounts can't receive mail)
+local_transport = error:Local Transport Disabled
+
+# Don't use local alias maps
+alias_maps = 
+
+# Local domain (could be omitted, since it is automatically derived from $myhostname)
+mydomain = example.com
+
+# Mails for these domains will be transported locally
+mydestination =
+    $myhostname
+    localhost.$mydomain
+    localhost
+
+# allow +
+recipient_delimiter = +
+
+###################################################################################################
+### Virtual Transport ###
+#########################
+
+# Deliver mail for virtual recipients to Dovecot
+virtual_transport = dovecot
+
+# Process one mail at one time
+# dovecot_destination_recipient_limit = 1
+
+# Valid virtual domains
+virtual_mailbox_domains = proxy:ldap:/etc/postfix/ldap_virtual_domains.cf
+
+# Valid virtual recipients
+virtual_mailbox_maps = proxy:ldap:/etc/postfix/ldap_virtual_recipients.cf
+
+# Virtual aliases
+virtual_alias_maps = proxy:ldap:/etc/postfix/ldap_virtual_aliases.cf
+
+
+###################################################################################################
+### ESMTP Settings ###
+######################
+
+### SASL ###
+
+# Enable SASL (required for SMTP authentication)
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = /var/spool/postfix/private/auth
+
+# Enable SASL for Outlook-Clients as well
+#broken_sasl_auth_clients = yes
+
+### TLS ###
+
+# Enable TLS (required to encrypt the plaintext SASL authentication)
+smtpd_tls_security_level = may
+
+smtp_tls_note_starttls_offer = yes
+smtp_tls_security_level = may
+smtpd_use_tls=yes
+
+
+# Only offer SASL in a TLS session
+smtpd_tls_auth_only = yes
+#ssl_cert = /etc/pki/dovecot/certs/dovecot.pem
+#ssl_key = /etc/pki/dovecot/private/dovecot.pem
+
+# Certification Authority
+#smtpd_tls_CAfile = /etc/postfix/certs/example-cacert.pem
+
+# Public Certificate
+smtpd_tls_cert_file = /etc/pki/dovecot/certs/dovecot.pem
+
+# Private Key (without passphrase)
+smtpd_tls_key_file = /etc/pki/dovecot/private/dovecot.pem
+
+# Randomizer for key creation
+tls_random_source = dev:/dev/urandom
+
+# TLS related logging (set to 2 for debugging)
+smtpd_tls_loglevel = 0
+
+# Avoid Denial-Of-Service-Attacks
+smtpd_client_new_tls_session_rate_limit = 10
+
+# Activate TLS Session Cache
+smtpd_tls_session_cache_database = btree:/etc/postfix/smtpd_session_cache
+
+# Deny some TLS-Ciphers
+smtpd_tls_mandatory_protocols=!SSLv2,!SSLv3
+smtp_tls_mandatory_protocols=!SSLv2,!SSLv3
+smtpd_tls_protocols=!SSLv2,!SSLv3
+smtp_tls_protocols=!SSLv2,!SSLv3
+
+smtp_tls_mandatory_ciphers=high
+smtpd_tls_exclude_ciphers = 
+        EXP
+        EDH-RSA-DES-CBC-SHA
+        ADH-DES-CBC-SHA
+        DES-CBC-SHA
+        SEED-SHA
+	DES-CBC3-SHA
+	EDH-RSA-DES-CBC3-SHA
+	RC4
+	IDEA-CBC-SHA
+	
+
+# Diffie-Hellman Parameters for Perfect Forward Secrecy
+# Can be created with:
+# openssl dhparam -2 -out dh_512.pem 512
+# openssl dhparam -2 -out dh_1024.pem 1024
+smtpd_tls_dh512_param_file = ${config_directory}/certs/dh_512.pem
+smtpd_tls_dh1024_param_file = ${config_directory}/certs/dh_1024.pem
+smtpd_tls_eecdh_grade = strong
+
+
+###################################################################################################
+### Connection Policies ###
+###########################
+
+# Reject Early Talkers
+postscreen_greet_action = enforce
+
+# set spf timeout
+policy-spf_time_limit = 3600s
+
+# Use amavis for virus and spam scanning
+content_filter = smtp-amavis:[127.0.0.1]:10024
+
+
+###################################################################################################
+### Session Policies ###
+########################
+
+# Recipient Restrictions (RCPT TO related)
+smtpd_recipient_restrictions =
+        reject_non_fqdn_recipient
+        reject_unknown_recipient_domain
+	check_sender_access regexp:/etc/postfix/tag_as_originating.re
+        # Allow relaying for SASL authenticated clients and trusted hosts/networks
+        # This can be put to smtpd_relay_restrictions in Postfix 2.10 and later 
+        permit_sasl_authenticated
+        permit_mynetworks
+        # If not authenticated or on mynetworks, reject mailing to external addresses
+        reject_unauth_destination
+        # Reject the following hosts
+        check_sender_ns_access cidr:/etc/postfix/drop.cidr
+        check_sender_mx_access cidr:/etc/postfix/drop.cidr
+        # Additional blacklist
+        reject_rbl_client ix.dnsbl.manitu.net,
+        reject_rbl_client sbl.spamhaus.org,
+	reject_rbl_client cbl.abuseat.org,
+	reject_rbl_client bl.spamcop.net
+	check_policy_service unix:/var/spool/postfix/postgrey/socket
+	check_policy_service unix:private/policy-spf
+	check_sender_access regexp:/etc/postfix/tag_as_foreign.re
+        # Finally permit (relaying still requires SASL auth)
+        # WARNING: Due to this permit, everyone will be able to send emails to internal addresses without authentication. If this is set to reject though, the server does not receive emails from external addresses. Unfortunately I do not have a solution for this.
+        permit
+
+smtpd_relay_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination
+
+# Reject the request if the sender is the null address and there are multiple recipients
+smtpd_data_restrictions = reject_multi_recipient_bounce
+
+# Sender Restrictions
+smtpd_sender_restrictions =
+        reject_non_fqdn_sender
+        reject_unknown_sender_domain
+
+# HELO/EHLO Restrictions
+smtpd_helo_restrictions =
+		permit_mynetworks
+        check_helo_access pcre:/etc/postfix/identitycheck.pcre
+        #reject_non_fqdn_helo_hostname
+        reject_invalid_hostname
+
+# Deny VRFY recipient checks
+disable_vrfy_command = yes
+
+# Require HELO
+smtpd_helo_required = yes
+
+# Waste Spammers time ( and log a bit more)
+smtpd_delay_reject = yes
+
+# Client Restrictions (IP Blacklist)
+smtpd_client_restrictions = check_client_access cidr:/etc/postfix/drop.cidr
+

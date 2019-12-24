@@ -1,0 +1,118 @@
+# Install required packages
+
+- name: (CentOS) Install epel
+  yum:
+    name: epel-release
+    state: latest
+
+- name: (CentOS) Install LDAP packages
+  yum:
+    name:
+      - openldap
+      - openldap-servers
+      - openldap-clients
+      - python-ldap
+        #      - python-pip
+    state: present
+
+- name: (CentOS) (openldap) Check if default hdb exists
+  stat:
+    path: "/etc/openldap/slapd.d/cn=config/olcDatabase={2}hdb.ldif"
+  register: hdb_ldap_config
+
+- name: (CentOS) (openldap) Remove default slapd config
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - /etc/openldap/slapd.d/cn=config
+    - /etc/openldap/slapd.d/cn=config.ldif
+  when: hdb_ldap_config.stat.exists == True
+
+- name: (CentOS) (openldap) Create postfix schema (ldif)
+  template:
+   src: postfix-book.ldif
+   dest: /etc/openldap/schema/postfix-book.ldif
+
+- name: (CentOS) (openldap) Create postfix schema
+  template:
+   src: postfix-book.schema
+   dest: /etc/openldap/schema/postfix-book.schema
+
+   # don't use pip for pyOpenSSL, it will break certbot in the end
+   #- name: install python pyOpenSSL
+   #pip:
+   #name: pyOpenSSL
+
+- name: (CentOS) (openldap) generate password
+  shell: slappasswd -s {{ ldapadm_pw }}
+  register: ldapadm_pw_enc
+
+  # Create certificates using normal openssl command, pyopenssl from epel is to old and pyopenssl from pip breaks certbot
+  #- name: Generate Private Key for LDAP
+  #openssl_privatekey:
+  # path: /etc/openldap/certs/ldap.key
+
+  #- name: generate csr for ldap cert
+  #openssl_csr:
+  # path: /etc/openldap/certs/ldap.csr
+  # privatekey_path: /etc/openldap/certs/ldap.key
+  # common_name: "{{ ldap_server_name }}"
+
+  #- name: generate ssl certificate for ldap
+  #openssl_certificate:
+  # path: /etc/openldap/certs/ldap.crt
+  # privatekey_path: /etc/openldap/certs/ldap.key
+  # csr_path: /etc/openldap/certs/ldap.csr
+  # provider: selfsigned
+
+- name: (CentOS) (openldap) create certificate for LDAP
+  command: openssl req -newkey rsa:2048 -x509 -nodes -out /etc/openldap/certs/ldap.crt -keyout /etc/openldap/certs/ldap.key -days 18800 -subj "/CN={{ ldap_server_name }}"
+  args:
+    creates: /etc/openldap/certs/ldap.crt
+
+- name: (CentOS) disable firwalld
+  service:
+   name: firewalld
+   enabled: no
+   state: stopped
+  when: disable_firewall == true
+
+- name: (CentOS) (openldap) Create main.ldif from template
+  template:
+   src: main.ldif.j2
+   dest: /root/main.ldif
+
+- name: (CentOS) (openldap) check if no config exists
+  stat:
+    path: "/etc/openldap/slapd.d/cn=config.ldif"
+  register: ldap_config
+
+- name: (CentOS) (openldap) Load main.ldif in LDAP
+  command: slapadd -l /root/main.ldif -F /etc/openldap/slapd.d -n 0
+  when: ldap_config.stat.exists == False
+
+- name: (CentOS) (openldap) set owner of ldap dir to ldap user
+  file:
+   path: /etc/openldap/slapd.d
+   owner: ldap
+   group: ldap
+   recurse: yes
+
+- name: (CentOS) (openldap) set owner of private key to ldap user
+  file:
+   path: /etc/openldap/certs/ldap.key
+   owner: ldap
+   group: ldap
+
+- name: (CentOS) (openldap) Listen to ldap on hostname
+  lineinfile:
+   path: /etc/sysconfig/slapd
+   regexp: 'SLAPD_URLS'
+   line: 'SLAPD_URLS="ldapi:/// ldap://127.0.0.1/ ldap://{{ inventory_hostname }} ldaps://{{ inventory_hostname }}"'
+
+- name: (CentOS) (openldap) start and enable ldap
+  service:
+   name: slapd
+   enabled: yes
+   state: started

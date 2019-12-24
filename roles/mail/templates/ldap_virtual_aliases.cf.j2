@@ -1,0 +1,10 @@
+bind = yes
+bind_dn = uid=postfix,ou=services,{{ dc_base }}
+bind_pw = {{ mail_bind_pw }}
+server_host = ldaps://{{ master_ldap1 }}:636
+{% if master_ldap2 is defined %}		ldaps://{{ master_ldap2 }}:636{% endif %}
+
+search_base = ou=people,{{ dc_base }}
+query_filter = (&(mailAlias=%s)(mailEnabled=TRUE))
+result_attribute = mail, email
+version = 3

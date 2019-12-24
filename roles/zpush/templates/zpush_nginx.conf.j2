@@ -1,0 +1,76 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ zpush_hostname }} {{ zpush_autodiscover_hostname }};
+    root /var/www/zpush/;
+
+   # redirect only in / block for letsencrypt
+   location / {
+        return 301 https://$server_name$request_uri;
+        }
+   location '/.well-known/acme-challenge' {
+        default_type "text/plain";
+   }
+
+}
+
+server {
+    server_name {{ zpush_hostname }} {{ zpush_autodiscover_hostname }}; # Put your server name
+
+    # Uncomment the following lines to enable SSL support if not configured yet
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    
+    ssl on;
+    ssl_certificate /etc/ssl/nginx/{{ zpush_hostname }}.crt;
+    ssl_certificate_key /etc/ssl/nginx/{{ zpush_hostname }}.key;
+
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+    ssl_ciphers 'ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:AES256+EECDH:AES256+EDH';
+    ssl_prefer_server_ciphers on;
+
+    # If you're using PHP-FPM uncomment the following lines.
+    include         fastcgi_params;
+    fastcgi_index   index.php;
+    fastcgi_param   SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    fastcgi_param   REQUEST_URI $1;
+    fastcgi_param   PHP_FLAG "magic_quotes_gpc=off \n register_globals=off \n magic_quotes_runtime=off \n short_open_tag=on";
+    fastcgi_param   PHP_VALUE "post_max_size=20M \n upload_max_filesize=20M \n max_execution_time=3660";
+    fastcgi_param   HTTP_PROXY ""; # Mitigate https://httpoxy.org/ vulnerabilities
+    fastcgi_read_timeout 3660; # Z-Push Ping might run 3600s, but to be safe
+
+    location ~* /Microsoft-Server-ActiveSync {
+        alias       /usr/share/z-push/index.php;
+
+        access_log  /var/log/nginx/z-push-access.log;
+        error_log   /var/log/nginx/z-push-error.log;
+
+        # Attachments ca 15MB max (since binary data needs to be base64 encoded in mine, which results in in about 33% overhead)
+        client_max_body_size 25m;
+        client_body_buffer_size 128k;
+
+        # Select one of the fastcgi_pass values or adapt to your configuration
+        #fastcgi_pass    unix:/var/run/php5-fpm.sock; # for PHP 5.X Debian/Ubuntu
+        #fastcgi_pass    unix:/var/run/php/php7.0-fpm.sock; # for PHP 7.X Debian/Ubuntu
+        #fastcgi_pass    unix:/var/run/php-fpm/php-fpm.sock; # usually RedHat and its derivatives
+        #fastcgi_pass    127.0.0.1:9000; # default php-fpm config
+	fastcgi_pass    unix:/var/run/php-fpm/php-fpm-zpush.sock; 
+    }
+
+    location ~* /AutoDiscover/AutoDiscover.xml {
+        alias       /usr/share/z-push/autodiscover/autodiscover.php;
+
+        access_log  /var/log/nginx/z-push-autodiscover-access.log;
+        error_log   /var/log/nginx/z-push-autodiscover-error.log;
+
+        # Select one of the fastcgi_pass values or adapt to your configuration
+        #fastcgi_pass    unix:/var/run/php5-fpm.sock; # for PHP 5.X Debian/Ubuntu
+        #fastcgi_pass    unix:/var/run/php/php7.0-fpm.sock; # for PHP 7.X Debian/Ubuntu
+        #fastcgi_pass    unix:/var/run/php-fpm/php-fpm.sock; # usually RedHat and its derivatives
+        #fastcgi_pass    127.0.0.1:9000; # default php-fpm config
+         fastcgi_pass    unix:/var/run/php-fpm/php-fpm-zpush.sock;
+
+        fastcgi_index   autodiscover.php;
+    }
+
+}

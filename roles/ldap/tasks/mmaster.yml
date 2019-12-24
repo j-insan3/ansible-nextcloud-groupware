@@ -1,0 +1,83 @@
+- name: (multi-master openldap) Check if sync module is already enabled
+  shell: cat /etc/openldap/slapd.d/cn\=config/cn\=module\{* | grep syncprov
+  register: syncprov_result
+  ignore_errors: true
+
+- name: (multi-master openldap) Enable sync module for master-master if not enabled
+  ldap_entry:
+    dn: cn=module,cn=config
+    objectClass:
+     - olcModuleList
+    attributes:
+     cn: module
+     olcModulePath: /usr/lib64/openldap
+     olcModuleLoad: syncprov.la
+    bind_dn: cn=ldapadm,cn=config
+    bind_pw: "{{ ldapadm_pw }}"
+  when: syncprov_result is failed
+
+- name: (multi-master openldap) check if no syncprov config exists
+  stat:
+    path: "/etc/openldap/slapd.d/cn=config/olcDatabase={0}config/olcOverlay={0}syncprov.ldif"
+  register: syncprov_config
+
+- name: (multi-master openldap) Set ServerID for sync on master1
+  ldap_attr:
+   dn: cn=config
+   name: olcServerID
+   values: 1
+   bind_dn: cn=ldapadm,cn=config
+   bind_pw: "{{ ldapadm_pw }}"
+   state: exact
+  when:
+    - syncprov_config.stat.exists == False
+    - not slave | default(False)
+  ignore_errors: true
+
+- name: (multi-master openldap) Set ServerID for sync on master2
+  ldap_attr:
+   dn: cn=config
+   name: olcServerID
+   values: 2
+   bind_dn: cn=ldapadm,cn=config
+   bind_pw: "{{ ldapadm_pw }}"
+   state: exact
+  when:
+    - syncprov_config.stat.exists == False
+    - slave | default(False)
+  ignore_errors: true
+
+- name: (multi-master openldap) Create master-config.ldif from template
+  template:
+   src: master-config.ldif.j2
+   dest: /root/master-config.ldif
+
+- name: (multi-master openldap) Load master-config sync in LDAP
+  command: ldapadd -h localhost -D "cn=ldapadm,cn=config" -w {{ ldapadm_pw }}  -f /root/master-config.ldif
+  when: syncprov_config.stat.exists == False
+
+- name: (multi-master openldap) check if no syncprov for mdb exists 0
+  stat:
+    path: "/etc/openldap/slapd.d/cn=config/olcDatabase={2}mdb/olcOverlay={1}syncprov.ldif"
+  register: syncprov_mdb
+
+- name: (multi-master openldap) enable syncprov for mdb database
+  ldap_entry:
+   dn: olcOverlay=syncprov,olcDatabase={2}mdb,cn=config
+   objectClass:
+     - olcOverlayConfig
+     - olcSyncProvConfig
+   attributes:
+     olcOverlay: syncprov
+   bind_dn: cn=ldapadm,cn=config
+   bind_pw: "{{ ldapadm_pw }}"
+  when: syncprov_mdb.stat.exists == False
+
+- name: (multi-master openldap) Create master-mdb.ldif from template
+  template:
+   src: master-mdb.ldif.j2
+   dest: /root/master-mdb.ldif
+
+- name: (multi-master openldap) Load master-mdb sync in LDAP
+  command: ldapadd -h localhost -D "cn=ldapadm,cn=config" -w {{ ldapadm_pw }}  -f /root/master-mdb.ldif
+  when: syncprov_mdb.stat.exists == False

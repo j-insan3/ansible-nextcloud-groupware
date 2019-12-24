@@ -1,0 +1,22 @@
+- name: (rspamd reverse proxy) Install apache httpd
+  yum:
+   name: httpd
+   state: latest
+
+- name: (rspamd reverse proxy) Create rspamd reversy proxy config from template
+  template:
+   src: rspamd-httpd.conf.j2
+   dest: /etc/httpd/conf.d/rspamd-proxy.conf
+
+- name: (rspamd reverse proxy) change apache listen port
+  lineinfile:
+    path: /etc/httpd/conf/httpd.conf
+    regexp: '^Listen '
+    line: 'Listen {{ httpd_port }}'
+
+- name: (rspamd reverse proxy) start apache webserver
+  service:
+   name: httpd
+   enabled: yes
+   state: restarted
+

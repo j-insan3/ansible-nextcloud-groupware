@@ -1,0 +1,190 @@
+<?php
+
+/* Local configuration for Roundcube Webmail */
+
+// ----------------------------------
+// SQL DATABASE
+// ----------------------------------
+// Database connection string (DSN) for read+write operations
+// Format (compatible with PEAR MDB2): db_provider://user:password@host/database
+// Currently supported db_providers: mysql, pgsql, sqlite, mssql, sqlsrv, oracle
+// For examples see http://pear.php.net/manual/en/package.database.mdb2.intro-dsn.php
+// NOTE: for SQLite use absolute path (Linux): 'sqlite:////full/path/to/sqlite.db?mode=0646'
+//       or (Windows): 'sqlite:///C:/full/path/to/sqlite.db'
+$config['db_dsnw'] = 'mysql://{{ roundcube_db_admin }}:{{ roundcube_db_pw }}@localhost/{{ roundcube_db_name }}';
+
+// ----------------------------------
+// IMAP
+// ----------------------------------
+// The IMAP host chosen to perform the log-in.
+// Leave blank to show a textbox at login, give a list of hosts
+// to display a pulldown menu or set one host as string.
+// To use SSL/TLS connection, enter hostname with prefix ssl:// or tls://
+// Supported replacement variables:
+// %n - hostname ($_SERVER['SERVER_NAME'])
+// %t - hostname without the first part
+// %d - domain (http hostname $_SERVER['HTTP_HOST'] without the first part)
+// %s - domain name after the '@' from e-mail address provided at login screen
+// For example %n = mail.domain.tld, %t = domain.tld
+// WARNING: After hostname change update of mail_host column in users table is
+//          required to match old user data records with the new host.
+$config['default_host'] = 'ssl://{{ roundcube_imap_host }}';
+
+// TCP port used for IMAP connections
+$config['default_port'] = 993;
+
+// ----------------------------------
+// SMTP
+// ----------------------------------
+// SMTP server host (for sending mails).
+// Enter hostname with prefix tls:// to use STARTTLS, or use
+// prefix ssl:// to use the deprecated SSL over SMTP (aka SMTPS)
+// Supported replacement variables:
+// %h - user's IMAP hostname
+// %n - hostname ($_SERVER['SERVER_NAME'])
+// %t - hostname without the first part
+// %d - domain (http hostname $_SERVER['HTTP_HOST'] without the first part)
+// %z - IMAP domain (IMAP hostname without the first part)
+// For example %n = mail.domain.tld, %t = domain.tld
+$config['smtp_server'] = 'tls://{{ roundcube_smtp_host }}';
+
+// SMTP port (default is 25; use 587 for STARTTLS or 465 for the
+// deprecated SSL over SMTP (aka SMTPS))
+$config['smtp_port'] = 587;
+
+// SMTP username (if required) if you use %u as the username Roundcube
+// will use the current username for login
+$config['smtp_user'] = '%u';
+
+// SMTP password (if required) if you use %p as the password Roundcube
+// will use the current user's password for login
+$config['smtp_pass'] = '%p';
+
+// provide an URL where a user can get support for this Roundcube installation
+// PLEASE DO NOT LINK TO THE ROUNDCUBE.NET WEBSITE HERE!
+$config['support_url'] = '{{ roundcube_support_url }}';
+
+// check client IP in session authorization
+$config['ip_check'] = true;
+
+// This key is used for encrypting purposes, like storing of imap password
+// in the session. For historical reasons it's called DES_key, but it's used
+// with any configured cipher_method (see below).
+$config['des_key'] = '{{ roundcube_des_key }}';
+
+// Name your service. This is displayed on the login screen and in the window title
+$config['product_name'] = 'Bruggeman webmail';
+
+// ----------------------------------
+// PLUGINS
+// ----------------------------------
+// List of active plugins (in plugins/ directory)
+$config['plugins'] = array('acl', 'archive', 'attachment_reminder', 'autologon', 'emoticons', 'enigma', 'filesystem_attachments', 'identicon', 'jqueryui', 'managesieve', 'markasjunk', 'new_user_identity', 'password', 'userinfo', 'zipdownload', 'carddav');
+
+// In order to enable public ldap search, configure an array like the Verisign
+// example further below. if you would like to test, simply uncomment the example.
+// Array key must contain only safe characters, ie. a-zA-Z0-9_
+$config['ldap_public'] = array (
+  'People' =>
+  array (
+    'name' => 'People',
+    'hosts' =>
+    array (
+      0 => '{{ roundcube_ldap_host1 }}',
+{% if roundcube_ldap_host2 is defined %}     0 => '{{ roundcube_ldap_host2 }}',{% endif %}
+    ),
+    'port' => 389,
+    'user_specific' => true,
+    'base_dn' => 'ou=people,{{ dc_base }}',
+    'bind_dn' => 'uid=%u,ou=people,{{ dc_base }}',
+    'bind_pass' => '',
+    'filter' => '(objectClass=inetOrgPerson)',
+    'hidden' => true,
+    'name_field' => 'cn',
+    'email_field' => 'mail',
+    'surname_field' => 'sn',
+    'firstname_field' => 'givenName',
+    'sort' => 'sn',
+    'search_fields' =>
+    array (
+      0 => 'mail',
+      1 => 'cn',
+    ),
+  ),
+);
+
+// save compose message every 300 seconds (5min)
+$config['draft_autosave'] = 60;
+
+$config['managesieve_host'] = 'tls://{{ roundcube_imap_host }}';
+
+// Password Plugin options
+// -----------------------
+// A driver to use for password change. Default: "sql".
+// See README file for list of supported driver names.
+$config['password_driver'] = 'ldap';
+
+// Determine whether current password is required to change password.
+// Default: false.
+$config['password_confirm_current'] = true;
+
+// Default password hashing/crypting algorithm.
+// Possible options: des-crypt, ext-des-crypt, md5-crypt, blowfish-crypt,
+// sha256-crypt, sha512-crypt, md5, sha, smd5, ssha, samba, ad, dovecot, clear.
+// For details see password::hash_password() method.
+$config['password_algorithm'] = 'ssha';
+
+// LDAP server name to connect to.
+// You can provide one or several hosts in an array in which case the hosts are tried from left to right.
+// Exemple: array('ldap1.exemple.com', 'ldap2.exemple.com');
+// Default: 'localhost'
+$config['password_ldap_host'] = array('{{ roundcube_ldap_host1 }}'{% if roundcube_ldap_host2 is defined %}, '{{ roundcube_ldap_host2 }}'{% endif %});
+
+// LDAP server port to connect to
+// Default: '389'
+$config['password_ldap_port'] = 389;
+
+// LDAP base name (root directory)
+// Exemple: 'dc=exemple,dc=com'
+$config['password_ldap_basedn'] = '{{ dc_base }}';
+
+// LDAP connection method
+// There are two connection methods for changing a user's LDAP password.
+// 'user': use user credential (recommended, require password_confirm_current=true)
+// 'admin': use admin credential (this mode require password_ldap_adminDN and password_ldap_adminPW)
+// Default: 'user'
+$config['password_ldap_method'] = 'user';
+
+// LDAP user DN mask
+// The user's DN is mandatory and as we only have his login,
+// we need to re-create his DN using a mask
+// '%login' will be replaced by the current roundcube user's login
+// '%name' will be replaced by the current roundcube user's name part
+// '%domain' will be replaced by the current roundcube user's domain part
+// '%dc' will be replaced by domain name hierarchal string e.g. "dc=test,dc=domain,dc=com"
+// Exemple: 'uid=%login,ou=people,dc=exemple,dc=com'
+$config['password_ldap_userDN_mask'] = 'uid=%login,ou=people,{{ dc_base }}';
+
+// LDAP password hash type
+// Standard LDAP encryption type which must be one of: crypt,
+// ext_des, md5crypt, blowfish, md5, sha, smd5, ssha, ad, cram-md5 (dovecot style) or clear.
+// Set to 'default' if you want to use method specified in password_algorithm option above.
+// Multiple password Values can be generated by concatenating encodings with a +. E.g. 'cram-md5+crypt'
+// Default: 'crypt'.
+$config['password_ldap_encodage'] = 'ssha';
+
+// The id of the address book to use to automatically set a
+// user's full name in their new identity. (This should be an
+// string, which refers to the $config['ldap_public'] array.)
+$config['new_user_identity_addressbook'] = 'People';
+
+// When automatically setting a user's full name in their
+// new identity, match the user's login name against this field.
+$config['new_user_identity_match'] = 'uid';
+
+// Determine whether to import user's identities on each login.
+// New user identity will be created for each e-mail address
+// present in address book, but not assigned to any identity.
+$config['new_user_identity_onlogin'] = true;
+
+$config['enigma_pgp_homedir'] = 'plugins/enigma/home/';

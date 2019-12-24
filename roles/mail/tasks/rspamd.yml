@@ -1,0 +1,112 @@
+- name: (rspamd) set redis to listen both ipv4 and ipv6
+  lineinfile:
+    path: /etc/redis.conf
+    regexp: '^bind 127.0.0.1'
+    line: 'bind 127.0.0.1 ::1'
+
+- name: (rspamd) start and enable redis
+  service:
+   name: redis
+   enabled: yes
+   state: started
+
+- name: (rspamd) copy classifier-bayes.conf
+  copy:
+    src: classifier-bayes.conf
+    dest: /etc/rspamd/local.d/classifier-bayes.conf
+    force: yes
+    group: root
+    owner: root
+    mode: 0644
+
+- name: (rspamd) copy logging.inc
+  copy:
+    src: logging.inc
+    dest: /etc/rspamd/local.d/logging.inc
+    force: yes
+    group: root
+    owner: root
+    mode: 0644
+
+- name: (rspamd) copy milter_headers.conf
+  copy:
+    src: milter_headers.conf
+    dest: /etc/rspamd/local.d/milter_headers.conf
+    force: yes
+    group: root
+    owner: root
+    mode: 0644
+
+- name: (rspamd) copy redis.conf for spamd
+  copy:
+    src: redis.conf
+    dest: /etc/rspamd/local.d/redis.conf
+    force: yes
+    group: root
+    owner: root
+    mode: 0644
+
+- name: (rspamd) copy worker-proxy.inc for spamd
+  copy:
+    src: worker-proxy.inc
+    dest: /etc/rspamd/local.d/worker-proxy.inc
+    force: yes
+    group: root
+    owner: root
+    mode: 0644
+
+- name: (rspamd) generate password hash for rspamd
+  shell: /usr/bin/rspamadm pw -p {{ rspamd_password }}
+  register: rspamd_password_enc
+
+- name: (rspamd) create worker-controller.inc
+  template:
+    src: worker-controller.inc.j2
+    dest: /etc/rspamd/local.d/worker-controller.inc
+
+- name: (rspamd) create dkim folder
+  file:
+    path: /var/lib/rspamd/dkim
+    state: directory
+    owner: _rspamd
+    group: _rspamd
+    mode: 0755
+
+- name: (rspamd) reset permissions on dkim keys
+  file:
+    path: /var/lib/rspamd/dkim
+    owner: _rspamd
+    group: _rspamd
+    recurse: yes
+
+- name: (rspamd) generate dkim key
+  shell: /usr/bin/rspamadm dkim_keygen -b 2048 -s mail -k /var/lib/rspamd/dkim/mail.key > /var/lib/rspamd/dkim/mail.key.pub
+  args:
+    creates: /var/lib/rspamd/dkim/mail.key.pub
+
+- name: (rspamd) create dkim_signing.conf
+  template:
+    src: dkim_signing.conf.j2
+    dest: /etc/rspamd/local.d/dkim_signing.conf
+
+- name: (rspamd) update main.cf for rspamd
+  blockinfile:
+    path:  /etc/postfix/main.cf
+    block: |
+     smtpd_milters = inet:localhost:11332
+     non_smtpd_milters = inet:localhost:11332
+     milter_protocol = 6
+     milter_mail_macros =  i {mail_addr} {client_addr} {client_name} {auth_authen}
+     milter_default_action = accept
+
+- name: (rspamd) start and enable rspamd
+  service:
+   name: rspamd
+   enabled: yes
+   state: started
+
+- include_tasks: "rspamd_reverse_proxy.yml"
+  when: 
+    - ansible_distribution == "CentOS" and ansible_distribution_major_version > '6'
+    - setup_rspamd_proxy | default (False) | bool
+

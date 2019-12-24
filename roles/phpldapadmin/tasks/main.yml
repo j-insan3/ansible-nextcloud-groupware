@@ -1,0 +1,10 @@
+- include_tasks: "install-centos.yml"
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version > '6'
+  tags:
+    - install
+
+- include_tasks: "install-freebsd.yml"
+  when: ansible_distribution == "FreeBSD"
+  tags:
+    - install
+    - freebsd

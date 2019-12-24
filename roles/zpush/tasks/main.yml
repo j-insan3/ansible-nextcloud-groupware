@@ -1,0 +1,56 @@
+- include_tasks: "centos-install-zpush.yml"
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version > '6'
+
+- name: (zpush) create zpush nginx config
+  template:
+    src: zpush_nginx.conf.j2
+    dest: /etc/nginx/conf.d/zpush.conf
+    force: no
+
+- name: (zpush) create directory for nginx certs
+  file:
+   path: /etc/ssl/nginx
+   state: directory
+
+- name: (zpush) create temporary selfsigned certificate for zpush {{ zpush_hostname }}
+  command: openssl req -newkey rsa:2048 -x509 -nodes -out /etc/ssl/nginx/{{ zpush_hostname }}.crt -keyout /etc/ssl/nginx/{{ zpush_hostname }}.key -days 18800 -subj "/CN={{ zpush_hostname }}"
+  args:
+    creates: /etc/ssl/nginx/{{ zpush_hostname }}.crt
+
+- name: (zpush) create imap zpush config
+  template:
+    src: zpush_imap.conf.php.j2
+    dest: /etc/z-push/imap.conf.php
+
+- name: (zpush) create caldav zpush config
+  template:
+    src: zpush_caldav.conf.php.j2
+    dest: /etc/z-push/caldav.conf.php
+
+- name: (zpush) create carddav zpush config
+  template:
+    src: zpush_carddav.conf.php.j2
+    dest: /etc/z-push/carddav.conf.php
+
+- name: (zpush) create combined zpush config
+  template:
+    src: zpush_combined.conf.php.j2
+    dest: /etc/z-push/combined.conf.php
+
+- name: (zpush) create zpush autodiscover config
+  template:
+     src: zpush_autodiscover.conf.php.j2
+     dest: /etc/z-push/autodiscover.conf.php
+
+- name: (zpush) create zpush zpush config
+  template:
+     src: z-push.conf.php.j2
+     dest: /etc/z-push/z-push.conf.php
+
+- name: (zpush) Restart nginx
+  service:
+    name: nginx
+    state: restarted
+
+- name: (zpush) setup letsencrypt cert
+  command: certbot --nginx -n --agree-tos --email {{ certbot_address }} -d {{ zpush_hostname }}

@@ -1,0 +1,5 @@
+files/*.key
+files/*.crt
+files/*.cert
+files/*.pem
+hosts.yml

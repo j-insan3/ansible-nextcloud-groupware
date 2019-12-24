@@ -1,0 +1,148 @@
+# Install required packages
+
+- name: (FreeBSD) change bsd package site to latest
+  lineinfile:
+   path: /etc/pkg/FreeBSD.conf
+   regexp: '^  url:'
+   line: '  url: "pkg+http://pkg.FreeBSD.org/${ABI}/latest",'
+
+- name: (FreeBSD) get port snapshot if not there. (this may take up to a hour, better do this yourself using portsnap fetch before running this playbook)
+  shell: portsnap cron
+  args:
+   creates: /var/db/portsnap
+  tags:
+    - ports
+
+- name: (FreeBSD) extract ports if not there
+  shell: portsnap extract
+  args:
+   creates: /usr/ports
+  tags:
+    - ports
+
+- name: ensure /etc/make.conf exists
+  copy:
+    content: ""
+    dest: /etc/make.conf
+    force: no
+    group: wheel
+    owner: root
+    mode: 0664
+
+- name: (FreeBSD) set default build options for openldap_server
+  blockinfile:
+    path: /etc/make.conf
+    block: |
+      # Options for net/openldap24-server
+      .if ${.CURDIR:M*ports/net/openldap24-server}
+      OPTIONS_FILE_SET+=PPOLICY
+      OPTIONS_FILE_SET+=REFINT
+      OPTIONS_FILE_SET+=GSSAPI
+      OPTIONS_FILE_SET+=MEMBEROF
+      OPTIONS_FILE_SET+=SYNCPROV
+      .endif
+      # Options for net/py-ldap
+      .if ${.CURDIR:M*ports/net/py-ldap}
+      OPTIONS_FILE_SET+=SASL
+      .endif
+
+- name: (FreeBSD) Install openldap24 from ports
+  shell: export BATCH=yes && cd /usr/ports/net/openldap24-server && make install clean
+  args:
+   creates: /usr/local/etc/openldap/slapd.d
+
+- name: (FreeBSD) Install python ldap from ports
+  shell: export BATCH=yes && cd /usr/ports/net/py-ldap && make install clean
+  args:
+   creates: /usr/local/share/licenses/py27-ldap-3.1.0
+
+- name: (FreeBSD) Install packages
+  pkgng:
+    name:
+      - portmaster
+    state: present
+
+- name: (FreeBSD) (openldap) Check if slapd.conf exists
+  stat:
+    path: "/usr/local/etc/openldap/slapd.conf"
+  register: slapd_ldap_config
+
+- name: (FreeBSD) (openldap) Remove default slapd config
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - /usr/local/etc/openldap/slapd.conf
+    - /usr/local/etc/openldap/slapd.ldif
+  when: slapd_ldap_config.stat.exists == True
+
+- name: (FreeBSD) (openldap) Create postfix schema (ldif)
+  template:
+   src: postfix-book.ldif
+   dest: /usr/local/etc/openldap/schema/postfix-book.ldif
+
+- name: (FreeBSD) (openldap) Create postfix schema
+  template:
+   src: postfix-book.schema
+   dest: /usr/local/etc/openldap/schema/postfix-book.schema
+
+- name: (FreeBSD) (openldap) generate password
+  shell: slappasswd -s {{ ldapadm_pw }}
+  register: ldapadm_pw_enc
+
+- name: (FreeBSD) Creates certs dir
+  file:
+    path: /usr/local/etc/openldap/certs
+    state: directory
+
+- name: (FreeBSD) Creates slapd.d dir
+  file:
+    path: /usr/local/etc/openldap/slapd.d
+    state: directory
+
+- name: (FreeBSD) (openldap) create certificate for LDAP
+  command: openssl req -newkey rsa:2048 -x509 -nodes -out /usr/local/etc/openldap/certs/ldap.crt -keyout /usr/local/etc/openldap/certs/ldap.key -days 18800 -subj "/CN={{ ldap_server_name }}"
+  args:
+    creates: /usr/local/etc/openldap/certs/ldap.crt
+
+- name: (FreeBSD) (openldap) Create main.ldif from template
+  template:
+   src: main_freebsd.ldif.j2
+   dest: /root/main.ldif
+
+- name: (FreeBSD) (openldap) check if no config exists
+  stat:
+    path: "/usr/local/etc/openldap/slapd.d/cn=config.ldif"
+  register: ldap_config
+
+- name: (FreeBSD) (openldap) Load main.ldif in LDAP
+  command: slapadd -l /root/main.ldif -F /usr/local/etc/openldap/slapd.d -n 0
+  when: ldap_config.stat.exists == False
+
+- name: (FreeBSD) (openldap) set owner of ldap dir to ldap user
+  file:
+   path: /usr/local/etc/openldap/slapd.d
+   owner: ldap
+   group: ldap
+   recurse: yes
+
+- name: (FreeBSD) (openldap) set owner of private key to ldap user
+  file:
+   path: /usr/local/etc/openldap/certs/ldap.key
+   owner: ldap
+   group: ldap
+
+- name: (FreeBSD) set ldap to cn_config in rc.config
+  blockinfile:
+    path: /etc/rc.conf
+    block: |
+     # openldap server
+     slapd_cn_config="YES"
+     slapd_flags='-h "ldapi://%2fvar%2frun%2fopenldap%2fldapi/ ldap://0.0.0.0/ ldap://{{ inventory_hostname }} ldaps://{{ inventory_hostname }}"'
+     slapd_sockets="/var/run/openldap/ldapi"
+
+- name: (FreeBSD) (openldap) start and enable ldap
+  service:
+   name: slapd
+   enabled: yes
+   state: started

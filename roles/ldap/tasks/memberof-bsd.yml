@@ -1,0 +1,50 @@
+- name: (FreeBSD) (openldap memberof) Check if memberof module is already enabled
+  shell: cat /usr/local/etc/openldap/slapd.d/cn\=config/cn\=module\{* | grep memberof
+  register: memberof_result
+  ignore_errors: true
+
+- name: (FreeBSD) (openldap memberof) add module memberof
+  ldap_entry:
+    dn: cn=module,cn=config
+    objectClass:
+     - olcModuleList
+    attributes:
+     cn: module
+     olcModuleLoad: memberof
+    bind_dn: cn=ldapadm,cn=config
+    bind_pw: "{{ ldapadm_pw }}"
+  when: memberof_result is failed
+
+- name: (FreeBSD) (openldap memberof) Create memberof.ldif from template
+  template:
+   src: memberof.ldif.j2
+   dest: /root/memberof.ldif
+
+- name: (FreeBSD) (openldap memberof) Load memberof.ldif sync in LDAP
+  command: ldapadd -h localhost -D "cn=ldapadm,cn=config" -w {{ ldapadm_pw }}  -f /root/memberof.ldif
+  when: memberof_result is failed
+
+- name: (FreeBSD) (openldap memberof) Set refint module in config
+  ldap_attr:
+   dn: cn=module{3},cn=config
+   name: olcmoduleload
+   values: refint
+   bind_dn: cn=ldapadm,cn=config
+   bind_pw: "{{ ldapadm_pw }}"
+   state: exact
+  when: memberof_result is failed
+
+- name: (FreeBSD) (openldap memberof) Enable refint overlay in olcdatabase
+  ldap_entry:
+    dn: olcOverlay=refint,olcDatabase={2}mdb,cn=config
+    objectClass:
+     - olcConfig
+     - olcOverlayConfig
+     - olcRefintConfig
+     - top
+    attributes:
+     olcOverlay: refint
+     olcRefintAttribute: memberof member manager owner
+    bind_dn: cn=ldapadm,cn=config
+    bind_pw: "{{ ldapadm_pw }}"
+  when: memberof_result is failed
