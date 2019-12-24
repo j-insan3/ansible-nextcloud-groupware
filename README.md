@@ -5,10 +5,10 @@ Playbook for deploying complete Nextcloud 'groupware' stack on CentOS 7
 Requirements
 -------------------------------------------
 
-Ansible 2.2 >
-CentOS 7 installation ( LDAP server(s) can be a FreeNAS jail also...)
-SSH access to the servers
-Setup all the dns records and ports in advance ( or letsencrypt will fail )
+- Ansible 2.2 >
+- CentOS 7 installation ( LDAP server(s) can be a FreeNAS jail also...)
+- SSH access to the servers
+- Setup all the dns records and ports in advance ( or letsencrypt will fail )
 
 How to use
 -------------------------------------------
