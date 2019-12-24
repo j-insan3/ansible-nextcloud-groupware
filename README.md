@@ -1,4 +1,4 @@
-Playbook for deploying complete Nextcloud 'groupware' on CentOS 7
+Playbook for deploying complete Nextcloud 'groupware' stack on CentOS 7
 ==============
 
 
