@@ -1,6 +1,6 @@
 upstream php-handler {
     #server 127.0.0.1:9000;
-    server unix:/var/run/nextcloud-php72-fpm.sock;
+    server unix:/var/run/nextcloud-{{ nextcloud_php_version }}-fpm.sock;
 }
 
 server {

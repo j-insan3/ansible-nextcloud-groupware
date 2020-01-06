@@ -66,6 +66,7 @@ all:
     nc_admin_user: admin # initial nextcloud admin
     nc_admin_pw: !R!fxQLN # initial nextcloud admin password
     nextcloud_data_dir: "/data" # where to put nextcloud user data
+    nextcloud_php_version: php73
     nextcloud_redis_settings:
      - { name: 'memcache.local', value: '\OC\Memcache\Redis' }
      - { name: 'memcache.locking', value: '\OC\Memcache\Redis' }

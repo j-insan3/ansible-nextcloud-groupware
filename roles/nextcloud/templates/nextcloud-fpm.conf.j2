@@ -3,7 +3,7 @@
 user = nextcloud
 group = nextcloud
 
-listen = /var/run/nextcloud-php72-fpm.sock
+listen = /var/run/nextcloud-{{ nextcloud_php_version }}-fpm.sock
 
 listen.owner = nginx
 listen.group = nginx
@@ -21,15 +21,15 @@ pm.min_spare_servers = 5
 
 pm.max_spare_servers = 35
 
-slowlog = /var/opt/remi/php72/log/php-fpm/www-slow.log
+slowlog = /var/opt/remi/{{ nextcloud_php_version }}/log/php-fpm/www-slow.log
 
-php_admin_value[error_log] = /var/opt/remi/php72/log/php-fpm/www-error.log
+php_admin_value[error_log] = /var/opt/remi/{{ nextcloud_php_version }}/log/php-fpm/www-error.log
 php_admin_flag[log_errors] = on
 
 php_value[session.save_handler] = files
-php_value[session.save_path]    = /var/opt/remi/php72/lib/php/nc_session
-php_value[soap.wsdl_cache_dir]  = /var/opt/remi/php72/lib/php/nc_wsdlcache
-php_value[opcache.file_cache]  = /var/opt/remi/php72/lib/php/nc_opcache
+php_value[session.save_path]    = /var/opt/remi/{{ nextcloud_php_version }}/lib/php/nc_session
+php_value[soap.wsdl_cache_dir]  = /var/opt/remi/{{ nextcloud_php_version }}/lib/php/nc_wsdlcache
+php_value[opcache.file_cache]  = /var/opt/remi/{{ nextcloud_php_version }}/lib/php/nc_opcache
 php_value[opcache.enable]=1
 php_value[opcache.enable_cli]=1
 php_value[opcache.interned_strings_buffer]=8
@@ -37,6 +37,6 @@ php_value[opcache.max_accelerated_files]=10000
 php_value[opcache.memory_consumption]=128
 php_value[opcache.save_comments]=1
 php_value[opcache.revalidate_freq]=1
-
+php_value[memory_limit] = 512M
 
 env[PATH] = /usr/local/bin:/usr/bin:/bin
