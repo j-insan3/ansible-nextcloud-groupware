@@ -27,7 +27,7 @@ server {
     ssl_certificate /etc/ssl/nginx/{{ nextcloud_host_name }}.crt;
     ssl_certificate_key /etc/ssl/nginx/{{ nextcloud_host_name }}.key;
 
-    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
     ssl_ciphers 'ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:AES256+EECDH:AES256+EDH';
     ssl_prefer_server_ciphers on;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
@@ -44,11 +44,13 @@ server {
     # will add the domain to a hardcoded list that is shipped
     # in all major browsers and getting removed from this list
     # could take several months.
+    add_header Referrer-Policy "no-referrer" always;
     add_header X-Content-Type-Options nosniff;
     add_header X-XSS-Protection "1; mode=block";
     add_header X-Robots-Tag none;
     add_header X-Download-Options noopen;
     add_header X-Permitted-Cross-Domain-Policies none;
+    add_header X-Frame-Options "SAMEORIGIN" always;
 
     # Path to the root of your installation
     root /var/www/nextcloud/;

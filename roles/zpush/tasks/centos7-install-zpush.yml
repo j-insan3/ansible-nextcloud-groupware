@@ -1,7 +1,7 @@
 # Install required packages
 
 - name: Install epel
-  yum: 
+  yum:
     name: epel-release
     state: latest
 
@@ -13,21 +13,21 @@
     gpgcheck: no
     enabled: yes
 
-- name: Install Packages for zpush 
-  yum: 
+- name: Install Packages for zpush
+  yum:
     name:
       - php-fpm
-      - z-push-backend-caldav 
+      - z-push-backend-caldav
       - z-push-backend-carddav
-      - z-push-backend-combined  
-      - z-push-backend-imap      
-      - z-push-common            
+      - z-push-backend-combined
+      - z-push-backend-imap
+      - z-push-common
       - z-push-config-nginx      
-      - z-push-ipc-sharedmemory    
+      - z-push-ipc-sharedmemory
       - z-push-autodiscover
       - php-pdo
       - php-xml
-      
+
 - name: (zpush centos) Add z-push user
   user:
     name: z-push
@@ -56,5 +56,3 @@
      name: php-fpm
      state: started
      enabled: yes
-
-

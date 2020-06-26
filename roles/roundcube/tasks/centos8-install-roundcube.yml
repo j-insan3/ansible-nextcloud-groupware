@@ -1,0 +1,90 @@
+# Install required packages
+
+- name: Install epel
+  yum:
+    name: epel-release
+    state: latest
+
+- name: Install remi repo.
+  yum:
+    name: "https://rpms.remirepo.net/enterprise/remi-release-7.rpm"
+    state: present
+
+- name: Import remi key
+  rpm_key:
+    key: "http://rpms.remirepo.net/RPM-GPG-KEY-remi"
+    state: present
+
+- name: Install Packages for roundcube
+  yum:
+    name:
+      - mariadb-server
+      - mariadb
+      - "{{ roundcube_php_version }}-php"
+      - "{{ roundcube_php_version }}-php-fpm"
+      - "{{ roundcube_php_version }}-php-dom"
+      - "{{ roundcube_php_version }}-php-zip"
+      - "{{ roundcube_php_version }}-php-gd"
+      - "{{ roundcube_php_version }}-php-mbstring"
+      - "{{ roundcube_php_version }}-php-posix"
+      - "{{ roundcube_php_version }}-php-opcache"
+      - "{{ roundcube_php_version }}-php-mysql"
+      - "{{ roundcube_php_version }}-php-pecl-redis"
+      - "{{ roundcube_php_version }}-php-ldap"
+      - "{{ roundcube_php_version }}-php-intl"
+      - "{{ roundcube_php_version }}-php-pecl-imagick"
+      - nginx
+      - certbot
+      - python3-certbot-nginx
+      - unzip
+      - python3-PyMySQL
+      - lbzip2
+
+- name: (roundcube centos) create roundcube opcache dir
+  file:
+    path: /var/opt/remi/{{ roundcube_php_version }}/lib/php/roundcube_opcache
+    state: directory
+    owner: roundcube
+    group: roundcube
+    recurse: yes
+    mode: 0770
+
+- name: (roundcube centos) create roundcube wsdl dir
+  file:
+    path: /var/opt/remi/{{ roundcube_php_version }}/lib/php/roundcube_wsdlcache
+    state: directory
+    owner: roundcube
+    group: roundcube
+    recurse: yes
+    mode: 0770
+
+- name: (roundcube centos) create roundcube session dir
+  file:
+    path: /var/opt/remi/{{ roundcube_php_version }}/lib/php/roundcube_session
+    state: directory
+    owner: roundcube
+    group: roundcube
+    recurse: yes
+    mode: 0770
+
+- name: (roundcube centos) create roundcube php-fpm config
+  template:
+    src: roundcube-fpm.conf.j2
+    dest: /etc/opt/remi/{{ roundcube_php_version }}/php-fpm.d/roundcube-{{ roundcube_php_version }}-fpm.conf
+
+- name: (roundcube centos) delete default www fpm
+  file:
+    path: /etc/opt/remi/{{ roundcube_php_version }}/php-fpm.d/www.conf
+    state: absent
+
+- name: (roundcube centos) start {{ roundcube_php_version }}-fpm
+  systemd:
+     name: "{{ roundcube_php_version }}-php-fpm"
+     state: restarted
+     enabled: yes
+
+- name: (roundcube centos) start mariadb
+  systemd:
+    name: mariadb
+    state: started
+    enabled: yes

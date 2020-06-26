@@ -1,5 +1,5 @@
-- include_tasks: "centos-install-zpush.yml"
-  when: ansible_distribution == "CentOS" and ansible_distribution_major_version > '6'
+- include_tasks: "centos7-install-zpush.yml"
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == '7'
 
 - name: (zpush) create zpush nginx config
   template:
@@ -54,3 +54,4 @@
 
 - name: (zpush) setup letsencrypt cert
   command: certbot --nginx -n --agree-tos --email {{ certbot_address }} -d {{ zpush_hostname }}
+  tags: letsencrypt

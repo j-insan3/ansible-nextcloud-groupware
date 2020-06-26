@@ -68,20 +68,21 @@ all:
     nextcloud_data_dir: "/data" # where to put nextcloud user data
     nextcloud_php_version: php73
     nextcloud_redis_settings:
-     - { name: 'memcache.local', value: '\OC\Memcache\Redis' }
-     - { name: 'memcache.locking', value: '\OC\Memcache\Redis' }
+     - { name: 'memcache.local', value: '\\\OC\\Memcache\\\Redis' }
+     - { name: 'memcache.locking', value: '\\\OC\\Memcache\\\Redis' }
      - { name: 'redis host', value: 'localhost' }
      - { name: 'redis port', value: '6379'}
     nextcloud_mail_settings: # used for autologon nextcloud mail app to mailserver
-     - { name: 'email', value: '%EMAIL%' }
-     - { name: 'imapHost', value: 'mta1.example.loc' }
-     - { name: 'imapPort', value: '993' }
-     - { name: 'imapUser', value: '%USERID%'}
-     - { name: 'imapSslMode', value: 'ssl'}
-     - { name: 'smtpHost', value: 'mta1.example.loc'}
-     - { name: 'smtpPort', value: '587'}
-     - { name: 'smtpUser', value: '%USERID%'}
-     - { name: 'smtpSslMode', value: 'tls'}
+     #- { name: 'email', value: '%EMAIL%' }
+     #- { name: 'imapHost', value: 'mta1.example.loc' }
+     #- { name: 'imapPort', value: '993' }
+     #- { name: 'imapUser', value: '%USERID%'}
+     #- { name: 'imapSslMode', value: 'ssl'}
+     #- { name: 'smtpHost', value: 'mta1.example.loc'}
+     #- { name: 'smtpPort', value: '587'}
+     #- { name: 'smtpUser', value: '%USERID%'}
+     #- { name: 'smtpSslMode', value: 'tls'}
+     # Broken sinsce 1.3, need to set trough nextcloud web -> settings -> groupware
 
 # Needed if you want zpush
     zpush_hostname: sync.example.net
@@ -89,7 +90,8 @@ all:
     zpush_imap_server: mail.example.net
     zpush_smtp_server: mail.example.net
 # Needed if you want Roundcube
-    roundcube_release: 1.4.0
+    roundcube_release: 1.4.6
+    roundcube_php_version: php73
     roundcube_hostname: webmail.example.net # hostname you want roundcube to listen on
     roundcube_db_name: roundcube
     roundcube_db_pw: C#Kr0nAvdsq$7fQ

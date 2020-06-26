@@ -1,7 +1,7 @@
 # This playbook deploys a whole groupware stack with ldap, postfix, dovecot, nextcloud, z-push
 
 - hosts: roundcube_server
-  sudo: yes
+  become: yes
   roles:
     - roundcube
   vars:
