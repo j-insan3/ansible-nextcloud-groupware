@@ -30,6 +30,7 @@
     owner: root
     mode: 0644
   when: mailserver_cert is defined
+  tags: cert
 
 - name: copy mailserver private key
   copy:
@@ -40,6 +41,7 @@
     owner: root
     mode: 0440
   when: mailserver_key is defined
+  tags: cert
 
 - name: Ensure group vmail exists
   group:
@@ -274,8 +276,10 @@
    name: dovecot
    enabled: yes
    state: restarted
+  tags: cert
 
 - name: (postfix) Restart postfix
   service:
     name: postfix
     state: restarted
+  tags: cert

@@ -171,6 +171,9 @@ smtpd_tls_exclude_ciphers =
         ADH-AES256-SHA256
         ADH-AES256-SHA
         ADH-CAMELLIA256-SHA
+ 	CAMELLIA256-SHA
+	CAMELLIA128-SHA
+ 	AES128-GCM-SHA256
         ADH-AES128-GCM-SHA256
         ADH-AES128-SHA
         ADH-AES128-SHA256
@@ -182,6 +185,13 @@ smtpd_tls_exclude_ciphers =
         AECDH-AES128-SHA
         AECDH-AES256-SHA
         AECDH-DES-CBC3-SHA
+	ECDHE-RSA-DES-CBC3-SHA
+ 	DHE-RSA-SEED-SHA
+	AES256-GCM-SHA384
+ 	AES256-SHA256
+	AES256-SHA
+	AES128-SHA
+	AES128-SHA256
 
 
 # Diffie-Hellman Parameters for Perfect Forward Secrecy
