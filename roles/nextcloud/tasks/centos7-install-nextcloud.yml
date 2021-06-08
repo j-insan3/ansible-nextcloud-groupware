@@ -49,6 +49,9 @@
       - "{{ nextcloud_php_version }}-php-ldap"
       - "{{ nextcloud_php_version }}-php-intl"
       - "{{ nextcloud_php_version }}-php-pecl-imagick"
+      - "{{ nextcloud_php_version }}-php-bcmath"
+      - "{{ nextcloud_php_version }}-php-gmp"
+      - "{{ nextcloud_php_version }}-php-smbclient"
       - nginx
       - certbot
       - certbot-nginx
