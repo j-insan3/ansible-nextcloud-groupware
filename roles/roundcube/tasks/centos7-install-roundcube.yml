@@ -49,6 +49,8 @@
       - unzip
       - MySQL-python
       - lbzip2
+  tags: php
+
 
 - name: (roundcube centos) create roundcube opcache dir
   file:
@@ -58,6 +60,7 @@
     group: roundcube
     recurse: yes
     mode: 0770
+  tags: php
 
 - name: (roundcube centos) create roundcube wsdl dir
   file:
@@ -67,6 +70,7 @@
     group: roundcube
     recurse: yes
     mode: 0770
+  tags: php
 
 - name: (roundcube centos) create roundcube session dir
   file:
@@ -76,22 +80,27 @@
     group: roundcube
     recurse: yes
     mode: 0770
+  tags: php
+
 
 - name: (roundcube centos) create roundcube php-fpm config
   template:
     src: roundcube-fpm.conf.j2
     dest: /etc/opt/remi/{{ roundcube_php_version }}/php-fpm.d/roundcube-{{ roundcube_php_version }}-fpm.conf
+  tags: php
 
 - name: (roundcube centos) delete default www fpm
   file:
     path: /etc/opt/remi/{{ roundcube_php_version }}/php-fpm.d/www.conf
     state: absent
+  tags: php
 
 - name: (roundcube centos) start {{ roundcube_php_version }}-fpm
   systemd:
      name: "{{ roundcube_php_version }}-php-fpm"
      state: restarted
      enabled: yes
+  tags: php
 
 - name: (roundcube centos) start mariadb
   systemd:
