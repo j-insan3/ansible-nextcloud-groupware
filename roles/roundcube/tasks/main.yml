@@ -103,7 +103,7 @@
 - name: (roundcube) Download carddav plugin
   unarchive:
     remote_src: yes
-    src: "https://github.com/blind-coder/rcmcarddav/releases/download/v{{ carddav_plugin_version }}/carddav-{{ carddav_plugin_version }}.tar.bz2"
+    src: "https://github.com/mstilkerich/rcmcarddav/releases/download/v{{ carddav_plugin_version }}/carddav-{{ carddav_plugin_version }}.tar.bz2"
     dest: "/var/www/roundcube/plugins"
     owner: roundcube
     group: roundcube
