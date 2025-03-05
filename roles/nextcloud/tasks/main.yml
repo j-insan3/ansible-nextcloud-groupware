@@ -21,6 +21,11 @@
   when: ansible_distribution == "CentOS" and ansible_distribution_major_version == '8'
   tags: php
 
+- include_tasks: "almalinux9-install-nextcloud.yml"
+  when: ansible_distribution == "AlmaLinux" and ansible_distribution_major_version == '9'
+  tags: php
+
+
 - include_tasks: "mariadb-setup.yml"
 
 - name: (nextcloud) create nextcloud nginx config

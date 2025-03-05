@@ -61,6 +61,7 @@
   mysql_db:
     name: "{{ nextcloud_db_name }}"
     state: present
+    login_unix_socket: /var/lib/mysql/mysql.sock
 
 - name: (nextcloud mariadb) "Configure the database user."
   mysql_user:
@@ -68,3 +69,4 @@
     password: "{{ nextcloud_db_pw }}"
     priv: "{{ nextcloud_db_name }}.*:ALL"
     state: present
+    login_unix_socket: /var/lib/mysql/mysql.sock

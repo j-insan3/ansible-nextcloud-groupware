@@ -1,0 +1,108 @@
+# Install required packages
+
+- name: Install epel
+  yum:
+    name: epel-release
+    state: latest
+
+# disable selinux, need to do some more research on what to set
+- name: set selinux to permissive for now
+  selinux:
+    policy: targeted
+    state: permissive
+
+- name: Import remi key
+  rpm_key:
+      key: "http://rpms.remirepo.net/RPM-GPG-KEY-remi"
+      state: present
+
+- name: Install remi repo.
+  yum:
+    name: "https://rpms.remirepo.net/enterprise/remi-release-9.rpm"
+    state: present
+
+- name: Install Packages for NextCloud ( nginx, mariadb )
+  yum:
+    name:
+      - mariadb-server
+      - mariadb
+      - redis
+      - "{{ nextcloud_php_version }}-php"
+      - "{{ nextcloud_php_version }}-php-fpm"
+      - "{{ nextcloud_php_version }}-php-dom"
+      - "{{ nextcloud_php_version }}-php-zip"
+      - "{{ nextcloud_php_version }}-php-gd"
+      - "{{ nextcloud_php_version }}-php-mbstring"
+      - "{{ nextcloud_php_version }}-php-posix"
+      - "{{ nextcloud_php_version }}-php-opcache"
+      - "{{ nextcloud_php_version }}-php-mysql"
+      - "{{ nextcloud_php_version }}-php-pecl-redis"
+      - "{{ nextcloud_php_version }}-php-ldap"
+      - "{{ nextcloud_php_version }}-php-intl"
+      - "{{ nextcloud_php_version }}-php-pecl-imagick"
+      - nginx
+      - unzip
+      - python3-PyMySQL
+    state: present
+  tags: php
+
+- name: create nextcloud session dir
+  file:
+    path: /var/opt/remi/{{ nextcloud_php_version }}/lib/php/nc_session
+    state: directory
+    owner: nextcloud
+    group: nextcloud
+    recurse: yes
+    mode: 0770
+  tags: php
+
+- name: create nextcloud opcache dir
+  file:
+    path: /var/opt/remi/{{ nextcloud_php_version }}/lib/php/nc_opcache
+    state: directory
+    owner: nextcloud
+    group: nextcloud
+    recurse: yes
+    mode: 0770
+  tags: php
+
+- name: create nextcloud wsdl dir
+  file:
+    path: /var/opt/remi/{{ nextcloud_php_version }}/lib/php/nc_wsdlcache
+    state: directory
+    owner: nextcloud
+    group: nextcloud
+    recurse: yes
+    mode: 0770
+  tags: php
+
+- name: create nextcloud php-fpm config
+  template:
+    src: nextcloud-fpm.conf.j2
+    dest: /etc/opt/remi/{{ nextcloud_php_version }}/php-fpm.d/nextcloud-{{ nextcloud_php_version }}-fpm.conf
+  tags: php
+
+- name: delete default www fpm
+  file:
+    path: /etc/opt/remi/{{ nextcloud_php_version }}/php-fpm.d/www.conf
+    state: absent
+  tags: php
+
+- name: start {{ nextcloud_php_version }}-fpm
+  systemd:
+     name: "{{ nextcloud_php_version }}-php-fpm"
+     state: started
+     enabled: yes
+  tags: php
+
+- name: start redis
+  systemd:
+    name: redis
+    state: started
+    enabled: yes
+
+- name: start mariadb
+  systemd:
+    name: mariadb
+    state: started
+    enabled: yes
